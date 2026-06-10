@@ -16,12 +16,19 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
+# Opt all JavaScript actions into the Node 24 runtime ahead of the forced
+# switch (June 16, 2026). The remaining upload-artifact@v4 deprecation warning
+# is transitive from actions/upload-pages-artifact (their issue #138) and is
+# not fixable here; this env var confirms the pipeline runs on Node 24.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
