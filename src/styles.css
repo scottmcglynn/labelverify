@@ -418,6 +418,106 @@ label.field select {
   -webkit-user-drag: none;
 }
 
+/* ---- Batch results toolbar: filters + submit ---- */
+.batch-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.filter-group { display: flex; flex-wrap: wrap; gap: 6px; }
+.filter-btn {
+  appearance: none;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.95rem;
+  min-height: 44px;
+  padding: 8px 16px;
+  cursor: pointer;
+  background: #fff;
+  color: var(--base);
+  border: 2px solid var(--line);
+  border-radius: 999px;
+}
+.filter-btn:hover { border-color: var(--blue); color: var(--blue); }
+.filter-btn.active {
+  background: var(--blue);
+  color: #fff;
+  border-color: var(--blue);
+}
+.filter-count {
+  display: inline-block;
+  min-width: 20px;
+  padding: 0 6px;
+  margin-left: 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  font-size: 0.82rem;
+}
+.filter-btn.active .filter-count { background: rgba(255, 255, 255, 0.25); }
+
+.submit-group { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.reviews-pending {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--gold);
+  background: var(--gold-bg);
+  padding: 6px 12px;
+  border-radius: 999px;
+}
+.success-note {
+  background: var(--green-bg);
+  border-left: 5px solid var(--green);
+  color: #19682c;
+  padding: 12px 16px;
+  border-radius: 4px;
+  margin-bottom: 14px;
+  font-weight: 600;
+}
+.empty-filter { padding: 18px 4px; }
+
+.btn-small { font-size: 0.92rem; padding: 8px 14px; white-space: nowrap; }
+
+/* ---- Adjudication panel inside an expanded REVIEW row ---- */
+.btn.approve { background: var(--green); }
+.btn.approve:hover:not(:disabled) { background: #19682c; }
+.btn.reject { background: var(--red); }
+.btn.reject:hover:not(:disabled) { background: #b50909; }
+.adjudication {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid #e6d394;
+  border-radius: var(--radius);
+  background: var(--gold-bg);
+}
+.adjudication h3 { margin: 0 0 12px; font-size: 1.05rem; }
+.adjudication-status { font-weight: 700; margin: 0 0 12px; }
+.adjudication .hint { margin: 12px 0 0; }
+
+/* ---- Confirmation modal (review gate) — matches LabelViewer overlay ---- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(20, 20, 20, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.modal-box {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+  padding: 26px;
+  max-width: 460px;
+  width: 100%;
+}
+.modal-box h2 { margin: 0 0 10px; font-size: 1.25rem; }
+.modal-box p { margin: 0 0 18px; }
+
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }

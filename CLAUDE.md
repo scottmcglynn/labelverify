@@ -57,6 +57,11 @@ COLA form data ─────────────────────�
    **Never move decision logic into the prompt.** Asking the model "does this
    match?" would approximate rules that must be enforced literally, and would
    not be unit-testable or explainable.
+   **Adjudication never overwrites the AI verdict.** In batch mode an agent can
+   resolve a REVIEW row to PASS or FAIL, but that decision is stored *alongside*
+   the AI verdict as `agentDecision`, never replacing it. The handoff records
+   both — `verdict` (final, post-adjudication) and `ai_verdict` (original) plus
+   `agent_decision` — so the trail is auditable. See `src/lib/handoff.js`.
 
 2. **Bring-your-own-key with a configurable API endpoint.** GitHub Pages is
    static hosting with no server to hold a secret, so the app calls
@@ -102,9 +107,14 @@ src/
                      verify() roll-up (PASS/REVIEW/FAIL).
     compare.test.js  unit tests encoding the stakeholder requirements.
     csv.js           RFC 4180 CSV parse/generate (no dependency).
+    handoff.js       buildHandoff(rows, {model}) — pure builder of the JSON
+                     submission payload (the downstream/COLA integration point).
+                     verdict = final post-adjudication; ai_verdict + agent_decision
+                     preserve the original. Tested in handoff.test.js.
   components/
     SingleVerify.jsx single-label flow (form → image → Verify)
-    BatchVerify.jsx  CSV + multi-image batch flow (filename matching, CSV export)
+    BatchVerify.jsx  CSV + multi-image batch flow: filename matching, verdict
+                     filters, REVIEW adjudication, CSV export, JSON handoff submit
     SettingsPanel.jsx key / model / endpoint configuration
     Shared.jsx       image drop zone, result checklist card (ResultCard takes
                      an optional imageFile prop to show a label preview +

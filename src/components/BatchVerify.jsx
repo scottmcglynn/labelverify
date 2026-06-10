@@ -1,11 +1,32 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { extractLabel, runPool } from '../lib/anthropic.js';
 import { verify } from '../lib/compare.js';
 import { parseCsvObjects, toCsv, downloadCsv } from '../lib/csv.js';
+import { buildHandoff } from '../lib/handoff.js';
 import { ImageDrop, ResultCard } from './Shared.jsx';
 
 const CONCURRENCY = 4;
 const REQUIRED_COLUMNS = ['filename', 'brand_name', 'alcohol_content'];
+const FILTER_LABELS = { ALL: 'all', PASS: 'pass', REVIEW: 'review', FAIL: 'fail', ERROR: 'error' };
+
+/** Final, post-adjudication verdict for a done row, or null if not decided. */
+function finalVerdict(row) {
+  if (row.status !== 'done') return null;
+  if (row.agentDecision) return row.agentDecision.decision; // PASS | FAIL
+  if (row.result.overall === 'REVIEW') return null; // unresolved
+  return row.result.overall; // PASS | FAIL
+}
+
+function isUnresolvedReview(row) {
+  return row.status === 'done' && row.result.overall === 'REVIEW' && !row.agentDecision;
+}
+
+/** Local-time stamp for the handoff filename, e.g. 20260610-1432. */
+function fileStamp(d) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
 
 export default function BatchVerify({ settings }) {
   const [applications, setApplications] = useState([]); // rows from CSV
@@ -14,6 +35,9 @@ export default function BatchVerify({ settings }) {
   const [rows, setRows] = useState([]); // per-application processing state
   const [running, setRunning] = useState(false);
   const [expanded, setExpanded] = useState(null);
+  const [filter, setFilter] = useState('ALL');
+  const [submitNote, setSubmitNote] = useState(null);
+  const [gateOpen, setGateOpen] = useState(false);
 
   const imageByName = useMemo(() => {
     const map = new Map();
@@ -45,9 +69,49 @@ export default function BatchVerify({ settings }) {
   const unmatched = applications.length - matched.length;
   const done = rows.filter((r) => r.status === 'done' || r.status === 'error').length;
 
+  // Live counts for the segmented filters. "Review" counts only UNRESOLVED
+  // reviews; an adjudicated row counts under its decided verdict.
+  const counts = useMemo(() => {
+    let pass = 0;
+    let review = 0;
+    let fail = 0;
+    let error = 0;
+    for (const r of rows) {
+      if (r.status === 'error') {
+        error += 1;
+        continue;
+      }
+      if (r.status !== 'done') continue;
+      const v = finalVerdict(r);
+      if (v === 'PASS') pass += 1;
+      else if (v === 'FAIL') fail += 1;
+      else review += 1; // unresolved REVIEW
+    }
+    return { all: rows.length, pass, review, fail, error };
+  }, [rows]);
+
+  const visibleRows = rows
+    .map((row, i) => ({ row, i }))
+    .filter(({ row }) => {
+      switch (filter) {
+        case 'PASS':
+          return finalVerdict(row) === 'PASS';
+        case 'FAIL':
+          return finalVerdict(row) === 'FAIL';
+        case 'REVIEW':
+          return isUnresolvedReview(row);
+        case 'ERROR':
+          return row.status === 'error';
+        default:
+          return true;
+      }
+    });
+
   const run = async () => {
     setRunning(true);
     setExpanded(null);
+    setFilter('ALL');
+    setSubmitNote(null);
     const initial = matched.map((app) => ({ app, status: 'queued' }));
     setRows(initial);
 
@@ -78,6 +142,41 @@ export default function BatchVerify({ settings }) {
     setRunning(false);
   };
 
+  // Record / revise an agent decision on a REVIEW row. NEVER mutates the AI
+  // verdict — the decision is stored alongside it.
+  const decide = (index, decision) => {
+    setSubmitNote(null);
+    setRows((prev) =>
+      prev.map((r, i) =>
+        i === index
+          ? { ...r, agentDecision: { decision, decidedAt: new Date().toISOString() } }
+          : r,
+      ),
+    );
+  };
+  const clearDecision = (index) => {
+    setSubmitNote(null);
+    setRows((prev) => prev.map((r, i) => (i === index ? { ...r, agentDecision: undefined } : r)));
+  };
+
+  const submit = () => {
+    if (counts.review > 0) {
+      setGateOpen(true);
+      return;
+    }
+    const payload = buildHandoff(rows, { model: settings.model });
+    const json = JSON.stringify(payload, null, 2);
+    const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `label-verification-handoff-${fileStamp(new Date())}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    const n = payload.submission.total;
+    setSubmitNote(`Submitted ${n} result${n === 1 ? '' : 's'} — handoff file downloaded.`);
+  };
+
   const exportResults = () => {
     const headers = ['filename', 'brand_name', 'verdict', 'issues', 'seconds'];
     const data = rows.map((r) => {
@@ -106,6 +205,17 @@ export default function BatchVerify({ settings }) {
       ),
     );
   };
+
+  const filterBtn = (id, label, count) => (
+    <button
+      type="button"
+      className={`filter-btn ${filter === id ? 'active' : ''}`}
+      aria-pressed={filter === id}
+      onClick={() => setFilter(id)}
+    >
+      {label} <span className="filter-count">{count}</span>
+    </button>
+  );
 
   return (
     <div>
@@ -190,7 +300,31 @@ export default function BatchVerify({ settings }) {
       {rows.length > 0 && (
         <div className="card">
           <h2>Batch results</h2>
-          <p className="hint">Click a row for the field-by-field checklist.</p>
+
+          <div className="batch-toolbar">
+            <div className="filter-group" role="group" aria-label="Filter results by verdict">
+              {filterBtn('ALL', 'All', counts.all)}
+              {filterBtn('PASS', 'Pass', counts.pass)}
+              {filterBtn('REVIEW', 'Review', counts.review)}
+              {filterBtn('FAIL', 'Fail', counts.fail)}
+              {counts.error > 0 && filterBtn('ERROR', 'Error', counts.error)}
+            </div>
+            <div className="submit-group">
+              {counts.review > 0 && (
+                <span className="reviews-pending">
+                  {counts.review} review{counts.review === 1 ? '' : 's'} pending
+                </span>
+              )}
+              <button type="button" className="btn" onClick={submit} disabled={running}>
+                Submit results
+              </button>
+            </div>
+          </div>
+
+          {submitNote && <div className="success-note" role="status">{submitNote}</div>}
+
+          <p className="hint">Use the Details button on any row for the field-by-field checklist.</p>
+
           <table className="batch-table">
             <thead>
               <tr>
@@ -198,54 +332,219 @@ export default function BatchVerify({ settings }) {
                 <th>Brand</th>
                 <th>Verdict</th>
                 <th>Time</th>
+                <th>Details</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, i) => (
+              {visibleRows.map(({ row, i }) => (
                 <BatchRow
-                  key={r.app.filename + i}
-                  row={r}
+                  key={row.app.filename + i}
+                  row={row}
                   expanded={expanded === i}
                   onToggle={() => setExpanded(expanded === i ? null : i)}
-                  imageFile={imageByName.get((r.app.filename || '').toLowerCase())}
+                  imageFile={imageByName.get((row.app.filename || '').toLowerCase())}
+                  onDecide={(decision) => decide(i, decision)}
+                  onClearDecision={() => clearDecision(i)}
                 />
               ))}
             </tbody>
           </table>
+
+          {visibleRows.length === 0 && (
+            <p className="kv empty-filter">No {FILTER_LABELS[filter]} results.</p>
+          )}
+
+          {gateOpen && (
+            <ReviewGateModal
+              count={counts.review}
+              onShowReviews={() => {
+                setGateOpen(false);
+                setFilter('REVIEW');
+              }}
+              onCancel={() => setGateOpen(false)}
+            />
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function BatchRow({ row, expanded, onToggle, imageFile }) {
-  const verdictChip = () => {
+function BatchRow({ row, expanded, onToggle, imageFile, onDecide, onClearDecision }) {
+  const verdictCell = () => {
     if (row.status === 'queued') return <span className="kv">Queued</span>;
     if (row.status === 'processing') return <span className="kv">Processing…</span>;
-    if (row.status === 'error') return <span className="chip MISMATCH">ERROR</span>;
-    return <span className={`chip ${row.result.overall === 'PASS' ? 'MATCH' : row.result.overall === 'REVIEW' ? 'REVIEW' : 'MISMATCH'}`}>{row.result.overall}</span>;
+    if (row.status === 'error') {
+      return (
+        <>
+          <span className="chip MISMATCH">ERROR</span>
+          <div className="kv">{row.error}</div>
+        </>
+      );
+    }
+    if (row.agentDecision) {
+      const d = row.agentDecision.decision;
+      return (
+        <>
+          <span className={`chip ${d === 'PASS' ? 'MATCH' : 'MISMATCH'}`}>{d}</span>
+          <div className="kv">{d === 'PASS' ? 'Agent approved' : 'Agent rejected'}</div>
+        </>
+      );
+    }
+    const ai = row.result.overall;
+    const cls = ai === 'PASS' ? 'MATCH' : ai === 'REVIEW' ? 'REVIEW' : 'MISMATCH';
+    return <span className={`chip ${cls}`}>{ai}</span>;
   };
+
+  const isDone = row.status === 'done';
 
   return (
     <>
-      <tr className={row.status === 'done' ? 'expandable' : ''} onClick={row.status === 'done' ? onToggle : undefined}>
+      <tr className={isDone ? 'expandable' : ''} onClick={isDone ? onToggle : undefined}>
         <td>{row.app.filename}</td>
         <td>{row.app.brand_name}</td>
-        <td>
-          {verdictChip()}
-          {row.status === 'error' && <div className="kv">{row.error}</div>}
-        </td>
+        <td>{verdictCell()}</td>
         <td className="timing">
           {row.elapsedMs != null ? `${(row.elapsedMs / 1000).toFixed(1)} s` : '—'}
         </td>
+        <td>
+          {isDone && (
+            <button
+              type="button"
+              className="btn secondary btn-small"
+              aria-expanded={expanded}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggle();
+              }}
+            >
+              {expanded ? 'Hide details ▴' : 'View details ▾'}
+            </button>
+          )}
+        </td>
       </tr>
-      {expanded && row.status === 'done' && (
+      {expanded && isDone && (
         <tr>
-          <td colSpan={4}>
+          <td colSpan={5}>
             <ResultCard result={row.result} elapsedMs={row.elapsedMs} imageFile={imageFile} />
+            {row.result.overall === 'REVIEW' && (
+              <div className="adjudication">
+                <h3>Agent decision</h3>
+                {row.agentDecision ? (
+                  <>
+                    <p className="adjudication-status">
+                      {row.agentDecision.decision === 'PASS'
+                        ? 'Approved — marked PASS'
+                        : 'Rejected — marked FAIL'}{' '}
+                      <span className="kv">
+                        (decided {new Date(row.agentDecision.decidedAt).toLocaleString()})
+                      </span>
+                    </p>
+                    <button type="button" className="btn secondary" onClick={onClearDecision}>
+                      Change decision
+                    </button>
+                  </>
+                ) : (
+                  <div className="btn-row">
+                    <button type="button" className="btn approve" onClick={() => onDecide('PASS')}>
+                      Approve — mark PASS
+                    </button>
+                    <button type="button" className="btn reject" onClick={() => onDecide('FAIL')}>
+                      Reject — mark FAIL
+                    </button>
+                  </div>
+                )}
+                <p className="hint">
+                  Records an agent decision for the handoff. The AI verdict (REVIEW) is
+                  preserved for auditability and is never overwritten.
+                </p>
+              </div>
+            )}
           </td>
         </tr>
       )}
     </>
+  );
+}
+
+/**
+ * Blocks submission while unresolved reviews remain. Accessible modal,
+ * consistent with LabelViewer: dark backdrop, role="dialog" aria-modal, focus
+ * moved in and trapped, ESC / backdrop / Cancel all dismiss, focus restored on
+ * close.
+ */
+function ReviewGateModal({ count, onShowReviews, onCancel }) {
+  const dialogRef = useRef(null);
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement;
+    dialogRef.current?.focus();
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onCancel();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const focusable = Array.from(
+        dialogRef.current?.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      ).filter((el) => !el.disabled && el.offsetParent !== null);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+      if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+        previouslyFocused.focus();
+      }
+    };
+  }, [onCancel]);
+
+  return createPortal(
+    <div
+      className="modal-backdrop"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onCancel();
+      }}
+    >
+      <div
+        className="modal-box"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="review-gate-title"
+        ref={dialogRef}
+        tabIndex={-1}
+      >
+        <h2 id="review-gate-title">Reviews to complete</h2>
+        <p>
+          You have {count} review{count === 1 ? '' : 's'} to complete. Decide each one
+          before submitting.
+        </p>
+        <div className="btn-row">
+          <button type="button" className="btn" onClick={onShowReviews}>
+            Show reviews
+          </button>
+          <button type="button" className="btn secondary" onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
