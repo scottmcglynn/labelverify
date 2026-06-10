@@ -92,8 +92,11 @@ src/
   lib/
     anthropic.js     vision extraction client, image downscaling (decodeImage,
                      fileToOptimizedBase64), MODELS list, bounded-concurrency
-                     runPool for batch mode. EXTRACTION_PROMPT lives here —
-                     keep it transcription-only.
+                     runPool for batch mode. extractLabel retries transient
+                     429/529 with exponential backoff (1s/2s/4s, honors
+                     Retry-After, 15s cap) and times only the successful
+                     attempt. EXTRACTION_PROMPT lives here — keep it
+                     transcription-only.
     compare.js       verification engine — ALL decision logic. STATUS enum,
                      OFFICIAL_WARNING text, compareText/Abv/NetContents/Warning,
                      verify() roll-up (PASS/REVIEW/FAIL).

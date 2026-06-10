@@ -116,8 +116,39 @@ function stripFences(text) {
   return text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
 }
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Parse a Retry-After header into milliseconds. Anthropic sends it as a number
+ * of seconds; anything non-numeric (e.g. an HTTP-date) returns null so the
+ * caller falls back to exponential backoff.
+ */
+function retryAfterMs(headerValue) {
+  const seconds = Number(headerValue);
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : null;
+}
+
+async function errorFromResponse(response) {
+  let message = `API error (HTTP ${response.status})`;
+  try {
+    const err = await response.json();
+    message = err?.error?.message || message;
+  } catch {
+    /* keep generic message */
+  }
+  return new Error(message);
+}
+
 /**
  * Extract label fields from one image.
+ *
+ * Transient failures — 429 (rate limited) and 529 (overloaded) — are retried
+ * up to 3 times with exponential backoff (1s, 2s, 4s), honoring a Retry-After
+ * header when present and capping any single wait at 15s. All other errors
+ * throw immediately. The timer is restarted on each attempt, so the returned
+ * elapsedMs reflects only the successful request, never the backoff waits —
+ * keeping the displayed time honest against the ~5-second budget.
+ *
  * @returns {Promise<{extraction: object, elapsedMs: number}>}
  */
 export async function extractLabel({ file, apiKey, baseUrl, model }) {
@@ -126,42 +157,49 @@ export async function extractLabel({ file, apiKey, baseUrl, model }) {
   }
 
   const { mediaType, data } = await fileToOptimizedBase64(file);
-  const started = performance.now();
-
-  const response = await fetch(`${(baseUrl || DEFAULT_BASE_URL).replace(/\/$/, '')}/v1/messages`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': ANTHROPIC_VERSION,
-      // Required by Anthropic for direct browser (CORS) requests. Safe in a
-      // bring-your-own-key app: the only key in play is the user's own.
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model: model || MODELS[0].id,
-      max_tokens: 1500,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: mediaType, data } },
-            { type: 'text', text: EXTRACTION_PROMPT },
-          ],
-        },
-      ],
-    }),
+  const url = `${(baseUrl || DEFAULT_BASE_URL).replace(/\/$/, '')}/v1/messages`;
+  const requestBody = JSON.stringify({
+    model: model || MODELS[0].id,
+    max_tokens: 1500,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data } },
+          { type: 'text', text: EXTRACTION_PROMPT },
+        ],
+      },
+    ],
   });
 
-  if (!response.ok) {
-    let message = `API error (HTTP ${response.status})`;
-    try {
-      const err = await response.json();
-      message = err?.error?.message || message;
-    } catch {
-      /* keep generic message */
+  const MAX_RETRIES = 3;
+  let started;
+  let response;
+  for (let attempt = 0; ; attempt++) {
+    started = performance.now();
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': ANTHROPIC_VERSION,
+        // Required by Anthropic for direct browser (CORS) requests. Safe in a
+        // bring-your-own-key app: the only key in play is the user's own.
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: requestBody,
+    });
+
+    if (response.ok) break;
+
+    const transient = response.status === 429 || response.status === 529;
+    if (!transient || attempt >= MAX_RETRIES) {
+      throw await errorFromResponse(response);
     }
-    throw new Error(message);
+
+    const backoffMs = 1000 * 2 ** attempt; // 1s, 2s, 4s
+    const waitMs = Math.min(retryAfterMs(response.headers.get('retry-after')) ?? backoffMs, 15000);
+    await sleep(waitMs);
   }
 
   const body = await response.json();
