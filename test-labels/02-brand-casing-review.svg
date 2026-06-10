@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="1080" viewBox="0 0 760 1080">
+  <rect width="760" height="1080" fill="#f7f2e7"/>
+  <rect x="24" y="24" width="712" height="1032" fill="none" stroke="#2b2017" stroke-width="6"/>
+  <rect x="40" y="40" width="680" height="1000" fill="none" stroke="#2b2017" stroke-width="2"/>
+
+  <text x="380" y="120" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="22" letter-spacing="6" fill="#6b3b16">ESTD 1881 &#8226; KENTUCKY</text>
+
+  <text x="380" y="250" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="78" font-weight="bold" fill="#2b2017">Old Tom</text>
+  <text x="380" y="330" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="78" font-weight="bold" fill="#2b2017">Distillery</text>
+
+  <line x1="180" y1="380" x2="580" y2="380" stroke="#6b3b16" stroke-width="3"/>
+
+  <text x="380" y="450" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="34" fill="#2b2017">Kentucky Straight</text>
+  <text x="380" y="495" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="34" fill="#2b2017">Bourbon Whiskey</text>
+
+  <circle cx="380" cy="610" r="58" fill="none" stroke="#6b3b16" stroke-width="3"/>
+  <text x="380" y="600" text-anchor="middle" font-family="Georgia, serif" font-size="20" fill="#6b3b16">SMALL</text>
+  <text x="380" y="628" text-anchor="middle" font-family="Georgia, serif" font-size="20" fill="#6b3b16">BATCH</text>
+
+  <text x="380" y="745" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="40" font-weight="bold" fill="#2b2017">45% Alc./Vol. (90 Proof)</text>
+  <text x="380" y="800" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="34" fill="#2b2017">750 mL</text>
+
+  <line x1="60" y1="850" x2="700" y2="850" stroke="#2b2017" stroke-width="1"/>
+
+  <text font-family="Arial, Helvetica, sans-serif" font-size="17" fill="#2b2017">
+    <tspan x="60" y="900" font-weight="bold">GOVERNMENT WARNING:</tspan><tspan> (1) According to the Surgeon General,</tspan>
+    <tspan x="60" dy="24">women should not drink alcoholic beverages during pregnancy</tspan>
+    <tspan x="60" dy="24">because of the risk of birth defects. (2) Consumption of</tspan>
+    <tspan x="60" dy="24">alcoholic beverages impairs your ability to drive a car or</tspan>
+    <tspan x="60" dy="24">operate machinery, and may cause health problems.</tspan>
+  </text>
+</svg>

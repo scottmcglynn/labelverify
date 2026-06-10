@@ -1,0 +1,7 @@
+filename,brand_name,class_type,alcohol_content,net_contents
+01-clean-pass.svg,OLD TOM DISTILLERY,Kentucky Straight Bourbon Whiskey,45,750 mL
+02-brand-casing-review.svg,OLD TOM DISTILLERY,Kentucky Straight Bourbon Whiskey,45,750 mL
+03-wrong-abv-fail.svg,OLD TOM DISTILLERY,Kentucky Straight Bourbon Whiskey,45,750 mL
+04-titlecase-warning-fail.svg,OLD TOM DISTILLERY,Kentucky Straight Bourbon Whiskey,45,750 mL
+05-missing-warning-fail.svg,OLD TOM DISTILLERY,Kentucky Straight Bourbon Whiskey,45,750 mL
+06-different-brand-fail.svg,OLD TOM DISTILLERY,Kentucky Straight Bourbon Whiskey,45,750 mL

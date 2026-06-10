@@ -133,10 +133,38 @@ The Vite config uses `base: './'` so the build works at any subpath.
   routine matching workload, not to issue rejections. REVIEW exists precisely
   because some mismatches are judgment calls.
 
-## Creating test labels
+## Test labels
 
-Per the brief, AI image generators work well for producing sample labels.
-Generate a label containing the sample fields (brand "OLD TOM DISTILLERY",
-"Kentucky Straight Bourbon Whiskey", "45% Alc./Vol. (90 Proof)", "750 mL",
-and the full government warning), then make broken variants — wrong ABV,
-title-case warning, missing warning — to exercise each verdict path.
+The `test-labels/` directory contains six ready-to-run sample labels that
+exercise every verdict path, plus an `applications.csv` for the batch flow.
+
+They are authored as **SVG** on purpose: they're reproducible and diff-able
+(text, not binary), and they double as a test of the app's SVG decode/raster
+fallback path in `src/lib/anthropic.js` (`createImageBitmap` rejects SVG, so
+these flow through the `HTMLImageElement` + canvas path). The app rasterizes
+them to JPEG client-side before upload, exactly like a photographed label. Per
+the brief, AI image generators also work well here — drop photorealistic PNGs
+in with the same filenames and the CSV still matches them.
+
+Every label is checked against one baseline COLA record — what "OLD TOM
+DISTILLERY" filed: brand `OLD TOM DISTILLERY`, `Kentucky Straight Bourbon
+Whiskey`, `45`, `750 mL`.
+
+| File | What's different | Expected verdict | Path exercised |
+| --- | --- | --- | --- |
+| `01-clean-pass.svg` | nothing — fully compliant | **PASS** | all fields MATCH |
+| `02-brand-casing-review.svg` | brand printed `Old Tom Distillery` (title case) | **REVIEW** | casing-only brand → REVIEW, not FAIL |
+| `03-wrong-abv-fail.svg` | label shows `40% Alc./Vol. (80 Proof)` | **FAIL** | numeric ABV mismatch |
+| `04-titlecase-warning-fail.svg` | warning prefix printed `Government Warning:` | **FAIL** | case-sensitive warning prefix mismatch |
+| `05-missing-warning-fail.svg` | no government warning at all | **FAIL** | mandatory warning not found |
+| `06-different-brand-fail.svg` | brand is `RED FOX DISTILLERY` | **FAIL** | genuinely different brand mismatch |
+
+**Single label:** on the Single tab, click **Fill with sample data**, drop one
+SVG, and **Verify label**. **Batch:** on the Batch tab, choose
+`test-labels/applications.csv`, add all six SVGs as the images (matched by
+filename), and **Verify**.
+
+If the default **Haiku** model ever drops or alters a word in the warning on a
+clean label (a false FAIL on `01`), switch to **Sonnet** in Settings and make
+it the default in `MODELS` (`src/lib/anthropic.js`) — warning-check accuracy
+beats the speed margin.
