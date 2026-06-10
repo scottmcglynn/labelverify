@@ -106,7 +106,12 @@ src/
     SingleVerify.jsx single-label flow (form → image → Verify)
     BatchVerify.jsx  CSV + multi-image batch flow (filename matching, CSV export)
     SettingsPanel.jsx key / model / endpoint configuration
-    Shared.jsx       image drop zone, result checklist card
+    Shared.jsx       image drop zone, result checklist card (ResultCard takes
+                     an optional imageFile prop to show a label preview +
+                     "View full size")
+    LabelViewer.jsx  full-screen modal label inspector — original-resolution
+                     image, button-based zoom (fit/100/200/400%), drag-to-pan,
+                     focus-trapped, ESC/backdrop close. Opened from ResultCard.
   App.jsx, main.jsx, styles.css
 
 test-labels/         AI/SVG test fixtures + expected verdicts (see its README)

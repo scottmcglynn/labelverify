@@ -207,6 +207,7 @@ export default function BatchVerify({ settings }) {
                   row={r}
                   expanded={expanded === i}
                   onToggle={() => setExpanded(expanded === i ? null : i)}
+                  imageFile={imageByName.get((r.app.filename || '').toLowerCase())}
                 />
               ))}
             </tbody>
@@ -217,7 +218,7 @@ export default function BatchVerify({ settings }) {
   );
 }
 
-function BatchRow({ row, expanded, onToggle }) {
+function BatchRow({ row, expanded, onToggle, imageFile }) {
   const verdictChip = () => {
     if (row.status === 'queued') return <span className="kv">Queued</span>;
     if (row.status === 'processing') return <span className="kv">Processing…</span>;
@@ -241,7 +242,7 @@ function BatchRow({ row, expanded, onToggle }) {
       {expanded && row.status === 'done' && (
         <tr>
           <td colSpan={4}>
-            <ResultCard result={row.result} elapsedMs={row.elapsedMs} />
+            <ResultCard result={row.result} elapsedMs={row.elapsedMs} imageFile={imageFile} />
           </td>
         </tr>
       )}

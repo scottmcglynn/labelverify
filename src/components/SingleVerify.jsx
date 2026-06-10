@@ -100,7 +100,7 @@ export default function SingleVerify({ settings }) {
       {result && (
         <div className="card">
           <h2>Verification result</h2>
-          <ResultCard result={result} elapsedMs={elapsedMs} />
+          <ResultCard result={result} elapsedMs={elapsedMs} imageFile={file} />
         </div>
       )}
     </div>

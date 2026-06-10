@@ -303,6 +303,121 @@ label.field select {
   padding: 24px 0 40px;
 }
 
+/* ---- Result card with label preview ---- */
+.result-body.with-preview {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 22px;
+  align-items: start;
+}
+@media (max-width: 760px) {
+  .result-body.with-preview { grid-template-columns: 1fr; }
+}
+.label-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: sticky;
+  top: 12px;
+}
+/* The preview image is itself a button so it's keyboard-operable. */
+.label-preview-img {
+  appearance: none;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fafafa;
+  cursor: zoom-in;
+  overflow: hidden;
+  line-height: 0;
+}
+.label-preview-img:hover { border-color: var(--blue); }
+.label-preview-img img {
+  display: block;
+  width: 100%;
+  max-height: 280px;
+  object-fit: contain;
+}
+
+/* ---- Full-screen label viewer (modal) ---- */
+.lv-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(20, 20, 20, 0.92);
+  display: flex;
+  flex-direction: column;
+}
+.lv-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  background: var(--blue-darker);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.18);
+}
+.lv-zoom-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.lv-btn {
+  appearance: none;
+  min-height: 48px;
+  min-width: 48px;
+  padding: 8px 18px;
+  font: inherit;
+  font-weight: 700;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: #fff;
+  background: var(--blue);
+  border: 2px solid #fff;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.lv-btn:hover:not(:disabled) { background: var(--blue-dark); }
+.lv-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.lv-btn-text { white-space: nowrap; }
+.lv-close {
+  background: var(--red);
+  border-color: #fff;
+}
+.lv-close:hover:not(:disabled) { background: #b50909; }
+.lv-level {
+  color: #fff;
+  font-weight: 700;
+  min-width: 60px;
+  text-align: center;
+}
+.lv-viewport {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 16px;
+  touch-action: none; /* panning is handled manually */
+}
+.lv-viewport.fit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-in;
+}
+.lv-viewport.zoomed {
+  display: block;
+  text-align: center;
+  cursor: grab;
+}
+.lv-img {
+  display: block;
+  margin: 0 auto;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
