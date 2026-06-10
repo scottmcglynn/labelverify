@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { extractLabel } from '../lib/anthropic.js';
 import { verify } from '../lib/compare.js';
-import { ImageDrop, ResultCard } from './Shared.jsx';
+import { buildHandoff, downloadHandoff } from '../lib/handoff.js';
+import { SAMPLE_APPLICATIONS } from '../lib/sampleApplications.js';
+import { AdjudicationPanel, ImageDrop, Modal, ResultCard } from './Shared.jsx';
 
 const EMPTY_FORM = {
   brand_name: '',
@@ -10,37 +12,62 @@ const EMPTY_FORM = {
   net_contents: '',
 };
 
-const SAMPLE = {
-  brand_name: 'OLD TOM DISTILLERY',
-  class_type: 'Kentucky Straight Bourbon Whiskey',
-  alcohol_content: '45',
-  net_contents: '750 mL',
-};
-
 export default function SingleVerify({ settings }) {
   const [form, setForm] = useState(EMPTY_FORM);
+  const [appId, setAppId] = useState(''); // selected simulated COLA record
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const [elapsedMs, setElapsedMs] = useState(null);
+  const [agentDecision, setAgentDecision] = useState(null);
+  const [submitNote, setSubmitNote] = useState(null);
+  const [gateOpen, setGateOpen] = useState(false);
 
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
   const ready = file && form.brand_name && form.alcohol_content;
 
+  // Clear everything downstream of the application/image inputs. Called when a
+  // new verification begins (new image, re-verify, or a new application loaded).
+  const resetOutcome = () => {
+    setResult(null);
+    setElapsedMs(null);
+    setAgentDecision(null);
+    setSubmitNote(null);
+    setError(null);
+  };
+
+  const loadApplication = (id) => {
+    setAppId(id);
+    resetOutcome();
+    const app = SAMPLE_APPLICATIONS.find((a) => a.id === id);
+    if (app) {
+      setForm({
+        brand_name: app.brand_name,
+        class_type: app.class_type,
+        alcohol_content: app.alcohol_content,
+        net_contents: app.net_contents,
+      });
+    }
+  };
+
+  const onFile = (f) => {
+    setFile(f);
+    resetOutcome();
+  };
+
   const run = async () => {
     setBusy(true);
-    setError(null);
-    setResult(null);
+    resetOutcome();
     try {
-      const { extraction, elapsedMs } = await extractLabel({
+      const { extraction, elapsedMs: ms } = await extractLabel({
         file,
         apiKey: settings.apiKey,
         baseUrl: settings.baseUrl,
         model: settings.model,
       });
       setResult(verify(form, extraction));
-      setElapsedMs(elapsedMs);
+      setElapsedMs(ms);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -48,14 +75,61 @@ export default function SingleVerify({ settings }) {
     }
   };
 
+  const decide = (decision) => {
+    setAgentDecision({ decision, decidedAt: new Date().toISOString() });
+    setSubmitNote(null);
+  };
+  const clearDecision = () => {
+    setAgentDecision(null);
+    setSubmitNote(null);
+  };
+
+  const unresolvedReview = result?.overall === 'REVIEW' && !agentDecision;
+
+  const submit = () => {
+    if (unresolvedReview) {
+      setGateOpen(true);
+      return;
+    }
+    const row = {
+      status: 'done',
+      result,
+      elapsedMs,
+      agentDecision: agentDecision ?? undefined,
+      app: {
+        filename: file?.name ?? null,
+        brand_name: form.brand_name,
+        class_type: form.class_type,
+        alcohol_content: form.alcohol_content,
+        net_contents: form.net_contents,
+      },
+    };
+    const payload = buildHandoff([row], { model: settings.model, source: 'single' });
+    downloadHandoff(payload);
+    const n = payload.submission.total;
+    setSubmitNote(`Submitted ${n} result${n === 1 ? '' : 's'} — handoff file downloaded.`);
+  };
+
   return (
     <div>
       <div className="two-col">
         <div className="card">
-          <h2>1. Application data</h2>
+          <h2>1. Application (simulated COLA lookup)</h2>
           <p className="hint">
-            What the applicant entered on the COLA form. The label must match this.
+            In production these fields arrive prefilled from the COLA record. They're
+            editable here for testing — change a value to simulate a mismatch.
           </p>
+          <label className="field">
+            Load application
+            <select value={appId} onChange={(e) => loadApplication(e.target.value)}>
+              <option value="">Choose an application…</option>
+              {SAMPLE_APPLICATIONS.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="field">
             Brand name
             <input value={form.brand_name} onChange={set('brand_name')} placeholder="OLD TOM DISTILLERY" />
@@ -72,15 +146,12 @@ export default function SingleVerify({ settings }) {
             Net contents
             <input value={form.net_contents} onChange={set('net_contents')} placeholder="750 mL" />
           </label>
-          <button type="button" className="btn secondary" onClick={() => setForm(SAMPLE)}>
-            Fill with sample data
-          </button>
         </div>
 
         <div className="card">
           <h2>2. Label image</h2>
           <p className="hint">A photo or scan of the label artwork.</p>
-          <ImageDrop file={file} onFile={setFile} />
+          <ImageDrop file={file} onFile={onFile} />
         </div>
       </div>
 
@@ -101,7 +172,42 @@ export default function SingleVerify({ settings }) {
         <div className="card">
           <h2>Verification result</h2>
           <ResultCard result={result} elapsedMs={elapsedMs} imageFile={file} />
+
+          {result.overall === 'REVIEW' && (
+            <AdjudicationPanel
+              agentDecision={agentDecision}
+              onDecide={decide}
+              onClearDecision={clearDecision}
+            />
+          )}
+
+          {submitNote && (
+            <div className="success-note" role="status" style={{ marginTop: 16 }}>
+              {submitNote}
+            </div>
+          )}
+
+          <div className="btn-row" style={{ marginTop: 16 }}>
+            <button type="button" className="btn" onClick={submit}>
+              Submit result
+            </button>
+            {unresolvedReview && (
+              <span className="reviews-pending">1 review pending</span>
+            )}
+          </div>
         </div>
+      )}
+
+      {gateOpen && (
+        <Modal labelledById="single-gate-title" onClose={() => setGateOpen(false)}>
+          <h2 id="single-gate-title">Review to complete</h2>
+          <p>Decide the review before submitting.</p>
+          <div className="btn-row">
+            <button type="button" className="btn" onClick={() => setGateOpen(false)}>
+              OK
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   );

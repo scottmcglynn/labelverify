@@ -97,14 +97,37 @@ describe('buildHandoff', () => {
       errorRow('e1.svg'),
       errorRow('e2.svg'),
     ];
-    const { submission } = buildHandoff(rows, { model: 'm' });
+    const { submission } = buildHandoff(rows, { model: 'm', source: 'batch' });
     expect(submission.passed).toBe(2); // p1 + approved review
     expect(submission.failed).toBe(2); // f1 + rejected review
     expect(submission.errors).toBe(2);
     expect(submission.total).toBe(4); // results length = passed + failed
     expect(submission.tool).toBe('label-verify-prototype');
+    expect(submission.source).toBe('batch');
     expect(submission.model).toBe('m');
     expect(typeof submission.submitted_at).toBe('string');
+  });
+
+  it('defaults source to null when not supplied', () => {
+    expect(buildHandoff([doneRow('pass.svg', 'PASS')], {}).submission.source).toBeNull();
+  });
+
+  it('builds a single-mode handoff: one adjudicated REVIEW row with source "single"', () => {
+    const decidedAt = '2026-06-10T13:00:00.000Z';
+    const row = doneRow('label.svg', 'REVIEW', {
+      agentDecision: { decision: 'PASS', decidedAt },
+    });
+    const out = buildHandoff([row], { model: 'claude-haiku-4-5-20251001', source: 'single' });
+
+    expect(out.submission.source).toBe('single');
+    expect(out.submission.total).toBe(1);
+    expect(out.submission.passed).toBe(1);
+    expect(out.results).toHaveLength(1);
+
+    const r = out.results[0];
+    expect(r.verdict).toBe('PASS'); // final, post-adjudication
+    expect(r.ai_verdict).toBe('REVIEW'); // AI verdict preserved
+    expect(r.agent_decision).toEqual({ decision: 'PASS', decidedAt });
   });
 
   it('carries application data, fields, timing, and legibility into each result', () => {

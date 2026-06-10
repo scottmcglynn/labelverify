@@ -107,18 +107,25 @@ src/
                      verify() roll-up (PASS/REVIEW/FAIL).
     compare.test.js  unit tests encoding the stakeholder requirements.
     csv.js           RFC 4180 CSV parse/generate (no dependency).
-    handoff.js       buildHandoff(rows, {model}) — pure builder of the JSON
-                     submission payload (the downstream/COLA integration point).
-                     verdict = final post-adjudication; ai_verdict + agent_decision
-                     preserve the original. Tested in handoff.test.js.
+    handoff.js       buildHandoff(rows, {model, source}) — pure builder of the
+                     JSON submission payload (the downstream/COLA integration
+                     point). verdict = final post-adjudication; ai_verdict +
+                     agent_decision preserve the original; source is 'single' |
+                     'batch'. BOTH tabs emit this one schema, so the consumer is
+                     indifferent to entry point. Also exports downloadHandoff
+                     (side-effecting). Pure builder tested in handoff.test.js.
+    sampleApplications.js  six mock COLA records for the single-tab "Load
+                     application" lookup; mirrors test-labels/applications.csv.
   components/
-    SingleVerify.jsx single-label flow (form → image → Verify)
+    SingleVerify.jsx single-label flow: simulated COLA lookup (prefill, still
+                     editable) → image → Verify → REVIEW adjudication → submit
     BatchVerify.jsx  CSV + multi-image batch flow: filename matching, verdict
-                     filters, REVIEW adjudication, CSV export, JSON handoff submit
+                     filters, REVIEW adjudication, JSON handoff submit
     SettingsPanel.jsx key / model / endpoint configuration
     Shared.jsx       image drop zone, result checklist card (ResultCard takes
                      an optional imageFile prop to show a label preview +
-                     "View full size")
+                     "View full size"), plus AdjudicationPanel and the Modal
+                     shell — both shared by the single and batch tabs
     LabelViewer.jsx  full-screen modal label inspector — original-resolution
                      image, button-based zoom (fit/100/200/400%), drag-to-pan,
                      focus-trapped, ESC/backdrop close. Opened from ResultCard.

@@ -131,7 +131,14 @@ The Vite config uses `base: './'` so the build works at any subpath.
   version would match on COLA application ID.
 - **Single submission path.** A human-readable spreadsheet report is a natural
   future addition; the prototype keeps one submission path (the JSON handoff)
-  for clarity.
+  for clarity. Single-label and batch submissions share an identical handoff
+  contract, so the downstream consumer is indifferent to which entry point
+  produced a result.
+- **Single-mode entry simulates the COLA hand-in.** The single-label tab loads
+  application data from a mock COLA lookup; the real production integration
+  point is a prefilled application record arriving from the upstream system.
+  Manual editing of those fields is retained as a deliberate testing affordance
+  (change a value to simulate a label/application mismatch).
 - **AI-assisted, not AI-decided.** The tool is built to clear an agent's
   routine matching workload, not to issue rejections. REVIEW exists precisely
   because some mismatches are judgment calls.

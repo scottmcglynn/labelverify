@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useMemo, useState } from 'react';
 import { extractLabel, runPool } from '../lib/anthropic.js';
 import { verify } from '../lib/compare.js';
 import { parseCsvObjects, toCsv, downloadCsv } from '../lib/csv.js';
-import { buildHandoff } from '../lib/handoff.js';
-import { ImageDrop, ResultCard } from './Shared.jsx';
+import { buildHandoff, downloadHandoff } from '../lib/handoff.js';
+import { AdjudicationPanel, ImageDrop, Modal, ResultCard } from './Shared.jsx';
 
 const CONCURRENCY = 4;
 const REQUIRED_COLUMNS = ['filename', 'brand_name', 'alcohol_content'];
@@ -20,12 +19,6 @@ function finalVerdict(row) {
 
 function isUnresolvedReview(row) {
   return row.status === 'done' && row.result.overall === 'REVIEW' && !row.agentDecision;
-}
-
-/** Local-time stamp for the handoff filename, e.g. 20260610-1432. */
-function fileStamp(d) {
-  const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
 }
 
 export default function BatchVerify({ settings }) {
@@ -164,15 +157,8 @@ export default function BatchVerify({ settings }) {
       setGateOpen(true);
       return;
     }
-    const payload = buildHandoff(rows, { model: settings.model });
-    const json = JSON.stringify(payload, null, 2);
-    const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `label-verification-handoff-${fileStamp(new Date())}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const payload = buildHandoff(rows, { model: settings.model, source: 'batch' });
+    downloadHandoff(payload);
     const n = payload.submission.total;
     setSubmitNote(`Submitted ${n} result${n === 1 ? '' : 's'} — handoff file downloaded.`);
   };
@@ -331,14 +317,28 @@ export default function BatchVerify({ settings }) {
           )}
 
           {gateOpen && (
-            <ReviewGateModal
-              count={counts.review}
-              onShowReviews={() => {
-                setGateOpen(false);
-                setFilter('REVIEW');
-              }}
-              onCancel={() => setGateOpen(false)}
-            />
+            <Modal labelledById="review-gate-title" onClose={() => setGateOpen(false)}>
+              <h2 id="review-gate-title">Reviews to complete</h2>
+              <p>
+                You have {counts.review} review{counts.review === 1 ? '' : 's'} to complete.
+                Decide each one before submitting.
+              </p>
+              <div className="btn-row">
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    setGateOpen(false);
+                    setFilter('REVIEW');
+                  }}
+                >
+                  Show reviews
+                </button>
+                <button type="button" className="btn secondary" onClick={() => setGateOpen(false)}>
+                  Cancel
+                </button>
+              </div>
+            </Modal>
           )}
         </div>
       )}
@@ -404,123 +404,15 @@ function BatchRow({ row, expanded, onToggle, imageFile, onDecide, onClearDecisio
           <td colSpan={5}>
             <ResultCard result={row.result} elapsedMs={row.elapsedMs} imageFile={imageFile} />
             {row.result.overall === 'REVIEW' && (
-              <div className="adjudication">
-                <h3>Agent decision</h3>
-                {row.agentDecision ? (
-                  <>
-                    <p className="adjudication-status">
-                      {row.agentDecision.decision === 'PASS'
-                        ? 'Approved — marked PASS'
-                        : 'Rejected — marked FAIL'}{' '}
-                      <span className="kv">
-                        (decided {new Date(row.agentDecision.decidedAt).toLocaleString()})
-                      </span>
-                    </p>
-                    <button type="button" className="btn secondary" onClick={onClearDecision}>
-                      Change decision
-                    </button>
-                  </>
-                ) : (
-                  <div className="btn-row">
-                    <button type="button" className="btn approve" onClick={() => onDecide('PASS')}>
-                      Approve — mark PASS
-                    </button>
-                    <button type="button" className="btn reject" onClick={() => onDecide('FAIL')}>
-                      Reject — mark FAIL
-                    </button>
-                  </div>
-                )}
-                <p className="hint">
-                  Records an agent decision for the handoff. The AI verdict (REVIEW) is
-                  preserved for auditability and is never overwritten.
-                </p>
-              </div>
+              <AdjudicationPanel
+                agentDecision={row.agentDecision}
+                onDecide={onDecide}
+                onClearDecision={onClearDecision}
+              />
             )}
           </td>
         </tr>
       )}
     </>
-  );
-}
-
-/**
- * Blocks submission while unresolved reviews remain. Accessible modal,
- * consistent with LabelViewer: dark backdrop, role="dialog" aria-modal, focus
- * moved in and trapped, ESC / backdrop / Cancel all dismiss, focus restored on
- * close.
- */
-function ReviewGateModal({ count, onShowReviews, onCancel }) {
-  const dialogRef = useRef(null);
-
-  useEffect(() => {
-    const previouslyFocused = document.activeElement;
-    dialogRef.current?.focus();
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    const onKey = (e) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onCancel();
-        return;
-      }
-      if (e.key !== 'Tab') return;
-      const focusable = Array.from(
-        dialogRef.current?.querySelectorAll(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-        ) ?? [],
-      ).filter((el) => !el.disabled && el.offsetParent !== null);
-      if (!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prevOverflow;
-      if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
-        previouslyFocused.focus();
-      }
-    };
-  }, [onCancel]);
-
-  return createPortal(
-    <div
-      className="modal-backdrop"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onCancel();
-      }}
-    >
-      <div
-        className="modal-box"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="review-gate-title"
-        ref={dialogRef}
-        tabIndex={-1}
-      >
-        <h2 id="review-gate-title">Reviews to complete</h2>
-        <p>
-          You have {count} review{count === 1 ? '' : 's'} to complete. Decide each one
-          before submitting.
-        </p>
-        <div className="btn-row">
-          <button type="button" className="btn" onClick={onShowReviews}>
-            Show reviews
-          </button>
-          <button type="button" className="btn secondary" onClick={onCancel}>
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
   );
 }

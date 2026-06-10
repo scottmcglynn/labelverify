@@ -19,11 +19,16 @@
  *     remain).
  *   - ERROR rows are excluded from `results` but counted in `submission.errors`.
  *
- * @param {Array} rows  BatchVerify row state objects
- * @param {{model?: string}} [options]
+ * Both entry points share this one schema: single-label mode passes a
+ * one-element rows array with source 'single'; batch mode passes the full set
+ * with source 'batch'. The downstream consumer is therefore indifferent to
+ * which UI produced a result.
+ *
+ * @param {Array} rows  BatchVerify/SingleVerify row state objects
+ * @param {{model?: string, source?: 'single'|'batch'}} [options]
  * @returns {object} handoff payload
  */
-export function buildHandoff(rows, { model } = {}) {
+export function buildHandoff(rows, { model, source } = {}) {
   const results = [];
   let errors = 0;
 
@@ -78,6 +83,7 @@ export function buildHandoff(rows, { model } = {}) {
     submission: {
       submitted_at: new Date().toISOString(),
       tool: 'label-verify-prototype',
+      source: source ?? null,
       model: model ?? null,
       total: results.length,
       passed,
@@ -86,4 +92,26 @@ export function buildHandoff(rows, { model } = {}) {
     },
     results,
   };
+}
+
+/** Local-time stamp for the handoff filename, e.g. 20260610-1432. */
+function fileStamp(d) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
+
+/**
+ * Download a handoff payload as label-verification-handoff-<YYYYMMDD-HHmm>.json.
+ * Shared by single and batch submit so the filename convention lives in one
+ * place. (Side-effecting on purpose; buildHandoff above stays pure/testable.)
+ */
+export function downloadHandoff(payload) {
+  const json = JSON.stringify(payload, null, 2);
+  const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `label-verification-handoff-${fileStamp(new Date())}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
 }

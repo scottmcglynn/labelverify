@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import LabelViewer from './LabelViewer.jsx';
 
 /** Drag-and-drop / click-to-browse image picker with inline preview. */
@@ -161,5 +162,118 @@ export function ResultCard({ result, elapsedMs, imageFile }) {
         <LabelViewer file={imageFile} onClose={() => setViewerOpen(false)} />
       )}
     </div>
+  );
+}
+
+/**
+ * "Agent decision" panel for a REVIEW verdict — shared by single and batch
+ * modes. Approve → PASS / Reject → FAIL, with a Change decision affordance.
+ * The agentDecision model ({decision, decidedAt}) is stored ALONGSIDE the AI
+ * verdict and never mutates it — see src/lib/handoff.js.
+ */
+export function AdjudicationPanel({ agentDecision, onDecide, onClearDecision }) {
+  return (
+    <div className="adjudication">
+      <h3>Agent decision</h3>
+      {agentDecision ? (
+        <>
+          <p className="adjudication-status">
+            {agentDecision.decision === 'PASS'
+              ? 'Approved — marked PASS'
+              : 'Rejected — marked FAIL'}{' '}
+            <span className="kv">
+              (decided {new Date(agentDecision.decidedAt).toLocaleString()})
+            </span>
+          </p>
+          <button type="button" className="btn secondary" onClick={onClearDecision}>
+            Change decision
+          </button>
+        </>
+      ) : (
+        <div className="btn-row">
+          <button type="button" className="btn approve" onClick={() => onDecide('PASS')}>
+            Approve — mark PASS
+          </button>
+          <button type="button" className="btn reject" onClick={() => onDecide('FAIL')}>
+            Reject — mark FAIL
+          </button>
+        </div>
+      )}
+      <p className="hint">
+        Records an agent decision for the handoff. The AI verdict (REVIEW) is
+        preserved for auditability and is never overwritten.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Accessible modal shell shared by the batch review-gate and the single-mode
+ * review gate. Dark backdrop, role="dialog" aria-modal, focus moved in and
+ * trapped, ESC / backdrop click both close, focus restored on unmount. Callers
+ * supply the title (its id matching labelledById), body, and footer buttons as
+ * children.
+ */
+export function Modal({ labelledById, onClose, children }) {
+  const dialogRef = useRef(null);
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement;
+    dialogRef.current?.focus();
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const focusable = Array.from(
+        dialogRef.current?.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      ).filter((el) => !el.disabled && el.offsetParent !== null);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+      if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+        previouslyFocused.focus();
+      }
+    };
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      className="modal-backdrop"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="modal-box"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={labelledById}
+        ref={dialogRef}
+        tabIndex={-1}
+      >
+        {children}
+      </div>
+    </div>,
+    document.body,
   );
 }
