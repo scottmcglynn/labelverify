@@ -3,6 +3,9 @@
 A prototype tool for TTB compliance agents that checks alcohol beverage label
 artwork against COLA application data: brand name, class/type, alcohol
 content, net contents, and the mandatory Government Health Warning Statement.
+Project planning and prompts for Claude Code were done in Claude Fable 5.0
+Code was written using Claude Code Opus 4.8. See /audit/health-warning-compliance.md
+for limitations in this proof of concept.
 
 **Live demo:** https://scottmcglynn.github.io/labelverify/
 
