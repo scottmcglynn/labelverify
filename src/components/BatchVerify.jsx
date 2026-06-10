@@ -177,25 +177,6 @@ export default function BatchVerify({ settings }) {
     setSubmitNote(`Submitted ${n} result${n === 1 ? '' : 's'} — handoff file downloaded.`);
   };
 
-  const exportResults = () => {
-    const headers = ['filename', 'brand_name', 'verdict', 'issues', 'seconds'];
-    const data = rows.map((r) => {
-      if (r.status === 'error') return [r.app.filename, r.app.brand_name, 'ERROR', r.error, ''];
-      const issues = r.result.fields
-        .filter((f) => f.result.status !== 'MATCH')
-        .map((f) => `${f.label}: ${f.result.detail}`)
-        .join(' | ');
-      return [
-        r.app.filename,
-        r.app.brand_name,
-        r.result.overall,
-        issues || 'None',
-        (r.elapsedMs / 1000).toFixed(1),
-      ];
-    });
-    downloadCsv('label-verification-results.csv', toCsv(headers, data));
-  };
-
   const downloadTemplate = () => {
     downloadCsv(
       'batch-template.csv',
@@ -278,11 +259,6 @@ export default function BatchVerify({ settings }) {
               ? `Verifying… ${done} of ${rows.length}`
               : `Verify ${matched.length || ''} label${matched.length === 1 ? '' : 's'}`}
           </button>
-          {rows.length > 0 && !running && (
-            <button type="button" className="btn secondary" onClick={exportResults}>
-              Export results (CSV)
-            </button>
-          )}
         </div>
         {rows.length > 0 && (
           <div
