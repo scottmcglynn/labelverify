@@ -130,20 +130,27 @@ src/
                      'batch'. BOTH tabs emit this one schema, so the consumer is
                      indifferent to entry point. Also exports downloadHandoff
                      (side-effecting). Pure builder tested in handoff.test.js.
-    sampleApplications.js  six mock COLA records for the single-tab "Load
-                     application" lookup; mirrors test-labels/applications.csv.
-                     Bundles each record's label ARTWORK by importing the SVG
-                     from test-labels/ via Vite `?url` (mapped by filename) —
-                     test-labels/ stays the SINGLE SOURCE OF TRUTH; the SVGs are
-                     never copied into public/ or src/.
+    sampleApplications.js  six mock COLA records mirroring
+                     test-labels/applications.csv. Bundles each record's label
+                     ARTWORK by importing the SVG from test-labels/ via Vite
+                     `?url` (mapped by filename) — test-labels/ stays the SINGLE
+                     SOURCE OF TRUTH; the SVGs are never copied into public/ or
+                     src/. Exports loadSampleArtwork(record) → Promise<File>,
+                     shared by both tabs to fetch + wrap a record's artwork as a
+                     File. These simulated-COLA entry points (single "Load
+                     application", batch "Load sample batch") represent the
+                     production INPUT integration seam — where applications and
+                     artwork arrive from the upstream system — just as the
+                     handoff payload represents the output seam.
   components/
     SingleVerify.jsx single-label flow: simulated COLA lookup (prefills the
                      still-editable fields AND auto-loads the application's
                      artwork — fetched, wrapped in a File, fed through the same
                      path as a dropped image) → Verify → REVIEW adjudication →
                      submit. A dropped image replaces the auto-loaded one.
-    BatchVerify.jsx  CSV + multi-image batch flow: filename matching, verdict
-                     filters, REVIEW adjudication, JSON handoff submit
+    BatchVerify.jsx  CSV + multi-image batch flow: simulated COLA batch intake
+                     ("Load sample batch"), filename matching, verdict filters,
+                     REVIEW adjudication, JSON handoff submit
     SettingsPanel.jsx key / model / endpoint configuration
     Shared.jsx       image drop zone, result checklist card (ResultCard takes
                      an optional imageFile prop to show a label preview +

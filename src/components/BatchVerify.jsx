@@ -3,6 +3,7 @@ import { extractLabel, runPool } from '../lib/anthropic.js';
 import { verify } from '../lib/compare.js';
 import { parseCsvObjects, toCsv, downloadCsv } from '../lib/csv.js';
 import { buildHandoff, downloadHandoff } from '../lib/handoff.js';
+import { SAMPLE_APPLICATIONS, loadSampleArtwork } from '../lib/sampleApplications.js';
 import { AdjudicationPanel, ImageDrop, Modal, ResultCard } from './Shared.jsx';
 
 const CONCURRENCY = 4;
@@ -32,6 +33,7 @@ export default function BatchVerify({ settings }) {
   const [submitNote, setSubmitNote] = useState(null);
   const [gateOpen, setGateOpen] = useState(false);
   const [rerunOpen, setRerunOpen] = useState(false);
+  const [intakeNote, setIntakeNote] = useState(null); // non-blocking note for sample-batch artwork failures
 
   const imageByName = useMemo(() => {
     const map = new Map();
@@ -47,6 +49,35 @@ export default function BatchVerify({ settings }) {
     setSubmitNote(null);
     setExpanded(null);
     setFilter('ALL');
+    setIntakeNote(null);
+  };
+
+  // Simulated COLA queue: replace the current applications + images with the six
+  // sample records and their artwork. The artwork is fetched via the shared
+  // helper and enters as the SAME File objects a manual upload would, so the
+  // matching/verify path is unchanged. Mirrors the single tab's simulated lookup
+  // — in production a batch arrives from the upstream system with artwork
+  // attached; manual CSV + image upload remains the testing path.
+  const loadSampleBatch = async () => {
+    setCsvError(null);
+    const apps = SAMPLE_APPLICATIONS.map((r) => ({
+      filename: r.filename,
+      brand_name: r.brand_name,
+      class_type: r.class_type,
+      alcohol_content: r.alcohol_content,
+      net_contents: r.net_contents,
+    }));
+    const settled = await Promise.allSettled(SAMPLE_APPLICATIONS.map((r) => loadSampleArtwork(r)));
+    const files = settled.filter((s) => s.status === 'fulfilled').map((s) => s.value);
+    setApplications(apps);
+    setImages(files); // REPLACE (not append) — this is a fresh intake
+    resetBatchResults(); // clears prior results/decisions/submit + intake note
+    const failed = settled.length - files.length;
+    if (failed > 0) {
+      setIntakeNote(
+        `Couldn't load ${failed} of ${settled.length} sample label image(s) — add the missing one(s) manually if needed.`,
+      );
+    }
   };
 
   const addImages = (files) => {
@@ -243,8 +274,16 @@ export default function BatchVerify({ settings }) {
             <button type="button" className="btn secondary" onClick={downloadTemplate}>
               Download template
             </button>
+            <button type="button" className="btn secondary" onClick={loadSampleBatch}>
+              Load sample batch (simulated COLA queue)
+            </button>
           </div>
           {csvError && <div className="error-banner" role="alert" style={{ marginTop: 14 }}>{csvError}</div>}
+          {intakeNote && (
+            <p className="hint" role="status" style={{ marginTop: 14 }}>
+              {intakeNote}
+            </p>
+          )}
           {applications.length > 0 && (
             <p className="kv" style={{ marginTop: 14 }}>
               {applications.length} application(s) loaded.

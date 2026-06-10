@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { extractLabel } from '../lib/anthropic.js';
 import { verify } from '../lib/compare.js';
 import { buildHandoff, downloadHandoff } from '../lib/handoff.js';
-import { SAMPLE_APPLICATIONS } from '../lib/sampleApplications.js';
+import { SAMPLE_APPLICATIONS, loadSampleArtwork } from '../lib/sampleApplications.js';
 import { AdjudicationPanel, ImageDrop, Modal, ResultCard } from './Shared.jsx';
 
 const EMPTY_FORM = {
@@ -70,12 +70,9 @@ export default function SingleVerify({ settings }) {
       net_contents: app.net_contents,
     });
     try {
-      const res = await fetch(app.assetUrl);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
-      // Wrap the fetched artwork in a File with the correct name and type so it
+      // Shared helper fetches the bundled artwork and wraps it as a File so it
       // is indistinguishable from a dropped label image downstream.
-      setImage(new File([blob], app.filename, { type: 'image/svg+xml' }), true);
+      setImage(await loadSampleArtwork(app), true);
     } catch {
       // Non-blocking: keep the prefilled fields, leave the image empty.
       setImage(null, false);

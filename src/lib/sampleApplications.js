@@ -92,3 +92,21 @@ export const SAMPLE_APPLICATIONS = RECORDS.map((r) => ({
   ...r,
   assetUrl: ARTWORK_BY_FILENAME[r.filename] ?? null,
 }));
+
+/**
+ * Fetch a sample record's bundled artwork and wrap it as a File, so a simulated
+ * application also carries its label image — entering the pipeline exactly like
+ * a dropped file (correct name + image/svg+xml type). Shared by the single-tab
+ * lookup and the batch-tab sample-batch intake. Throws if the asset is missing
+ * or the fetch fails; callers handle that with the non-blocking note pattern.
+ *
+ * @param {{assetUrl: string|null, filename: string}} record
+ * @returns {Promise<File>}
+ */
+export async function loadSampleArtwork(record) {
+  if (!record?.assetUrl) throw new Error('No artwork URL for this record.');
+  const res = await fetch(record.assetUrl);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const blob = await res.blob();
+  return new File([blob], record.filename, { type: 'image/svg+xml' });
+}

@@ -174,9 +174,12 @@ the in-app picker now loads both the COLA field values and the matching label
 artwork, so all six scenarios are demoable straight from the live site with no
 fixture downloads. Then click **Verify label**. The dropzone still accepts any
 image for testing an arbitrary label (in production terms: replacing the
-submitted artwork). **Batch:** on the Batch tab, choose
-`test-labels/applications.csv`, add all six SVGs as the images (matched by
-filename), and **Verify**.
+submitted artwork). **Batch:** on the Batch tab, click **Load sample batch
+(simulated COLA queue)** to load all six applications and their artwork in one
+click — no fixture downloads — then **Verify**. The CSV + image upload path
+remains for testing your own data (in production terms: a manually assembled
+batch): choose `test-labels/applications.csv` and add the six SVGs as images,
+matched by filename.
 
 If the default **Haiku** model ever drops or alters a word in the warning on a
 clean label (a false FAIL on `01`), switch to **Sonnet** in Settings and make
