@@ -4,7 +4,7 @@ A prototype tool for TTB compliance agents that checks alcohol beverage label
 artwork against COLA application data: brand name, class/type, alcohol
 content, net contents, and the mandatory Government Health Warning Statement.
 
-**Live demo:** `https://<your-username>.github.io/<repo-name>/`
+**Live demo:** https://scottmcglynn.github.io/labelverify/
 
 ---
 
