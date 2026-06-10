@@ -169,8 +169,12 @@ Whiskey`, `45`, `750 mL`.
 | `05-missing-warning-fail.svg` | no government warning at all | **FAIL** | mandatory warning not found |
 | `06-different-brand-fail.svg` | brand is `RED FOX DISTILLERY` | **FAIL** | genuinely different brand mismatch |
 
-**Single label:** on the Single tab, click **Fill with sample data**, drop one
-SVG, and **Verify label**. **Batch:** on the Batch tab, choose
+**Single label:** on the Single tab, pick a record from **Load application** —
+the in-app picker now loads both the COLA field values and the matching label
+artwork, so all six scenarios are demoable straight from the live site with no
+fixture downloads. Then click **Verify label**. The dropzone still accepts any
+image for testing an arbitrary label (in production terms: replacing the
+submitted artwork). **Batch:** on the Batch tab, choose
 `test-labels/applications.csv`, add all six SVGs as the images (matched by
 filename), and **Verify**.
 

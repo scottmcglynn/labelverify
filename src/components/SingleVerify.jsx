@@ -24,6 +24,8 @@ export default function SingleVerify({ settings }) {
   const [submitNote, setSubmitNote] = useState(null);
   const [gateOpen, setGateOpen] = useState(false);
   const [rerunOpen, setRerunOpen] = useState(false);
+  const [imageAutoLoaded, setImageAutoLoaded] = useState(false);
+  const [artworkError, setArtworkError] = useState(null);
 
   // Clear everything downstream of the application/image inputs. Called when a
   // new verification begins (new image, re-verify) or any input changes (form
@@ -36,6 +38,16 @@ export default function SingleVerify({ settings }) {
     setError(null);
   };
 
+  // Set the current label image. Both a dropped file and an auto-loaded
+  // application image flow through here, so the downstream pipeline (decode,
+  // preview, verify) treats them identically; `autoLoaded` only drives the
+  // preview caption. Clears any prior artwork-load note.
+  const setImage = (f, autoLoaded) => {
+    setFile(f);
+    setImageAutoLoaded(autoLoaded);
+    setArtworkError(null);
+  };
+
   // Editing any field returns the tab to the "ready" state (re-enables Verify).
   const set = (key) => (e) => {
     setForm({ ...form, [key]: e.target.value });
@@ -43,22 +55,36 @@ export default function SingleVerify({ settings }) {
   };
   const ready = file && form.brand_name && form.alcohol_content;
 
-  const loadApplication = (id) => {
+  // Selecting an application mirrors the real COLA workflow: the filed field
+  // values AND the submitted label artwork load together. Existing reset rules
+  // apply (prior result/decision/submit cleared; tab returns to ready).
+  const loadApplication = async (id) => {
     setAppId(id);
     resetOutcome();
     const app = SAMPLE_APPLICATIONS.find((a) => a.id === id);
-    if (app) {
-      setForm({
-        brand_name: app.brand_name,
-        class_type: app.class_type,
-        alcohol_content: app.alcohol_content,
-        net_contents: app.net_contents,
-      });
+    if (!app) return;
+    setForm({
+      brand_name: app.brand_name,
+      class_type: app.class_type,
+      alcohol_content: app.alcohol_content,
+      net_contents: app.net_contents,
+    });
+    try {
+      const res = await fetch(app.assetUrl);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      // Wrap the fetched artwork in a File with the correct name and type so it
+      // is indistinguishable from a dropped label image downstream.
+      setImage(new File([blob], app.filename, { type: 'image/svg+xml' }), true);
+    } catch {
+      // Non-blocking: keep the prefilled fields, leave the image empty.
+      setImage(null, false);
+      setArtworkError("Couldn't load the sample artwork — drop a label image instead.");
     }
   };
 
   const onFile = (f) => {
-    setFile(f);
+    setImage(f, false);
     resetOutcome();
   };
 
@@ -167,7 +193,12 @@ export default function SingleVerify({ settings }) {
         <div className="card">
           <h2>2. Label image</h2>
           <p className="hint">A photo or scan of the label artwork.</p>
-          <ImageDrop file={file} onFile={onFile} />
+          <ImageDrop file={file} onFile={onFile} autoLoaded={imageAutoLoaded} />
+          {artworkError && (
+            <p className="hint" role="status" style={{ marginTop: 8 }}>
+              {artworkError}
+            </p>
+          )}
         </div>
       </div>
 

@@ -132,9 +132,16 @@ src/
                      (side-effecting). Pure builder tested in handoff.test.js.
     sampleApplications.js  six mock COLA records for the single-tab "Load
                      application" lookup; mirrors test-labels/applications.csv.
+                     Bundles each record's label ARTWORK by importing the SVG
+                     from test-labels/ via Vite `?url` (mapped by filename) —
+                     test-labels/ stays the SINGLE SOURCE OF TRUTH; the SVGs are
+                     never copied into public/ or src/.
   components/
-    SingleVerify.jsx single-label flow: simulated COLA lookup (prefill, still
-                     editable) → image → Verify → REVIEW adjudication → submit
+    SingleVerify.jsx single-label flow: simulated COLA lookup (prefills the
+                     still-editable fields AND auto-loads the application's
+                     artwork — fetched, wrapped in a File, fed through the same
+                     path as a dropped image) → Verify → REVIEW adjudication →
+                     submit. A dropped image replaces the auto-loaded one.
     BatchVerify.jsx  CSV + multi-image batch flow: filename matching, verdict
                      filters, REVIEW adjudication, JSON handoff submit
     SettingsPanel.jsx key / model / endpoint configuration

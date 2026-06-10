@@ -2,11 +2,29 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import LabelViewer from './LabelViewer.jsx';
 
-/** Drag-and-drop / click-to-browse image picker with inline preview. */
-export function ImageDrop({ file, onFile, multiple = false, onFiles }) {
+/**
+ * Drag-and-drop / click-to-browse image picker with inline preview.
+ *
+ * The preview is derived from the `file` prop (not just from a drop), so a file
+ * set programmatically by the parent — e.g. the single tab auto-loading an
+ * application's artwork — previews identically to a dropped one. `autoLoaded`
+ * only changes the caption to mark provenance; the file flows through the same
+ * path either way.
+ */
+export function ImageDrop({ file, onFile, multiple = false, onFiles, autoLoaded = false }) {
   const inputRef = useRef(null);
   const [dragging, setDragging] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
+
+  useEffect(() => {
+    if (multiple || !file) {
+      setPreviewUrl(null);
+      return undefined;
+    }
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file, multiple]);
 
   const handleFiles = (list) => {
     const images = Array.from(list).filter((f) => f.type.startsWith('image/'));
@@ -15,10 +33,6 @@ export function ImageDrop({ file, onFile, multiple = false, onFiles }) {
       onFiles(images);
     } else {
       onFile(images[0]);
-      setPreviewUrl((old) => {
-        if (old) URL.revokeObjectURL(old);
-        return URL.createObjectURL(images[0]);
-      });
     }
   };
 
@@ -45,7 +59,9 @@ export function ImageDrop({ file, onFile, multiple = false, onFiles }) {
         <>
           <img src={previewUrl} alt="Label preview" />
           <div className="filename">
-            {file.name} — click or drop to replace
+            {autoLoaded
+              ? 'Label artwork from application (simulated) — click or drop to replace'
+              : `${file.name} — click or drop to replace`}
           </div>
         </>
       ) : (
