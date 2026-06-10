@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { MODELS } from '../lib/anthropic.js';
+import { Icon } from './Icon.jsx';
 
 /**
  * Bring-your-own-key settings. The key lives in sessionStorage only —
@@ -9,25 +10,32 @@ import { MODELS } from '../lib/anthropic.js';
  */
 export default function SettingsPanel({ settings, onChange }) {
   const [open, setOpen] = useState(!settings.apiKey);
+  const hasKey = !!settings.apiKey;
 
   return (
     <div className="card">
       <div className="btn-row" style={{ justifyContent: 'space-between' }}>
-        <h2 style={{ margin: 0 }}>
-          Connection{' '}
-          {settings.apiKey ? (
-            <span className="chip MATCH">READY</span>
-          ) : (
-            <span className="chip REVIEW">KEY NEEDED</span>
-          )}
-        </h2>
-        <button type="button" className="btn secondary" onClick={() => setOpen(!open)}>
+        <div className="card-head" style={{ margin: 0 }}>
+          <span className="step-num"><Icon.gear style={{ width: 17, height: 17 }} /></span>
+          <div>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              Connection
+              {hasKey ? <span className="chip MATCH">Ready</span> : <span className="chip REVIEW">Key needed</span>}
+            </h2>
+            <p className="hint" style={{ margin: '4px 0 0' }}>
+              {hasKey
+                ? 'Live extraction via your Anthropic key.'
+                : 'Add an Anthropic API key to run label extraction.'}
+            </p>
+          </div>
+        </div>
+        <button type="button" className="btn ghost small" onClick={() => setOpen(!open)}>
           {open ? 'Hide settings' : 'Settings'}
         </button>
       </div>
 
       {open && (
-        <div style={{ marginTop: 16 }}>
+        <div style={{ marginTop: 18 }}>
           <label className="field">
             Anthropic API key
             <input
@@ -39,8 +47,8 @@ export default function SettingsPanel({ settings, onChange }) {
             />
           </label>
           <p className="hint">
-            Stored in this browser tab only and cleared when it closes. Get a key at
-            console.anthropic.com.
+            Held in this browser tab only and cleared when it closes — never sent anywhere except the
+            configured endpoint. Get a key at console.anthropic.com.
           </p>
           <div className="two-col">
             <label className="field">
@@ -66,8 +74,8 @@ export default function SettingsPanel({ settings, onChange }) {
             </label>
           </div>
           <p className="hint">
-            The endpoint is configurable so an agency deployment can route requests
-            through an approved internal proxy instead of a public API.
+            The endpoint is configurable so an agency deployment can route requests through an
+            approved internal proxy instead of a public API.
           </p>
         </div>
       )}

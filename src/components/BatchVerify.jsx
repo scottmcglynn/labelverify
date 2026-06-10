@@ -4,7 +4,8 @@ import { verify } from '../lib/compare.js';
 import { parseCsvObjects, toCsv, downloadCsv } from '../lib/csv.js';
 import { buildHandoff, downloadHandoff } from '../lib/handoff.js';
 import { SAMPLE_APPLICATIONS, loadSampleArtwork } from '../lib/sampleApplications.js';
-import { AdjudicationPanel, ImageDrop, Modal, ResultCard } from './Shared.jsx';
+import { AdjudicationPanel, ImageDrop, Modal, ResultCard, StatusChip } from './Shared.jsx';
+import { Icon } from './Icon.jsx';
 
 const CONCURRENCY = 4;
 const REQUIRED_COLUMNS = ['filename', 'brand_name', 'alcohol_content'];
@@ -55,9 +56,7 @@ export default function BatchVerify({ settings }) {
   // Simulated COLA queue: replace the current applications + images with the six
   // sample records and their artwork. The artwork is fetched via the shared
   // helper and enters as the SAME File objects a manual upload would, so the
-  // matching/verify path is unchanged. Mirrors the single tab's simulated lookup
-  // — in production a batch arrives from the upstream system with artwork
-  // attached; manual CSV + image upload remains the testing path.
+  // matching/verify path is unchanged.
   const loadSampleBatch = async () => {
     setCsvError(null);
     const apps = SAMPLE_APPLICATIONS.map((r) => ({
@@ -87,11 +86,7 @@ export default function BatchVerify({ settings }) {
     });
     // Invalidation is keyed to the RAW image set, not the matched pairs: any
     // image added here clears results and recorded decisions, even an unmatched
-    // one (a filename that pairs with no application row). This is deliberately
-    // conservative — an add can change which rows match, so we drop the whole
-    // result set rather than diff matched-before vs matched-after. The trade-off
-    // is that adding an unmatched image also discards completed adjudications; a
-    // future refinement could reset only when the matched set actually changes.
+    // one. Deliberately conservative — an add can change which rows match.
     resetBatchResults();
   };
 
@@ -254,15 +249,26 @@ export default function BatchVerify({ settings }) {
 
   return (
     <div>
+      <div className="demo-strip">
+        <span className="eyebrow">Simulated COLA queue</span>
+        <span className="ds-text">
+          <strong>Load six applications and their artwork in one click</strong>, then verify the batch.
+        </span>
+        <span className="spacer" />
+        <button type="button" className="btn small" onClick={loadSampleBatch}>
+          <Icon.download style={{ width: 16, height: 16 }} /> Load sample batch
+        </button>
+      </div>
+
       <div className="two-col">
         <div className="card">
-          <h2>1. Application data (CSV)</h2>
+          <div className="card-head"><span className="step-num">1</span><div><h2>Application data (CSV)</h2></div></div>
           <p className="hint">
-            One row per application. Columns: filename, brand_name, class_type,
-            alcohol_content, net_contents.
+            One row per application. Columns: filename, brand_name, class_type, alcohol_content,
+            net_contents.
           </p>
           <div className="btn-row">
-            <label className="btn secondary" style={{ display: 'inline-block' }}>
+            <label className="btn secondary small" style={{ cursor: 'pointer' }}>
               Choose CSV file
               <input
                 type="file"
@@ -271,14 +277,11 @@ export default function BatchVerify({ settings }) {
                 onChange={(e) => e.target.files[0] && loadCsv(e.target.files[0])}
               />
             </label>
-            <button type="button" className="btn secondary" onClick={downloadTemplate}>
+            <button type="button" className="btn ghost small" onClick={downloadTemplate}>
               Download template
             </button>
-            <button type="button" className="btn secondary" onClick={loadSampleBatch}>
-              Load sample batch (simulated COLA queue)
-            </button>
           </div>
-          {csvError && <div className="error-banner" role="alert" style={{ marginTop: 14 }}>{csvError}</div>}
+          {csvError && <div className="error-banner" role="alert" style={{ marginTop: 14 }}><Icon.alert style={{ width: 18, height: 18 }} />{csvError}</div>}
           {intakeNote && (
             <p className="hint" role="status" style={{ marginTop: 14 }}>
               {intakeNote}
@@ -286,21 +289,19 @@ export default function BatchVerify({ settings }) {
           )}
           {applications.length > 0 && (
             <p className="kv" style={{ marginTop: 14 }}>
-              {applications.length} application(s) loaded.
+              <span className="mono">{applications.length}</span> application(s) loaded.
             </p>
           )}
         </div>
 
         <div className="card">
-          <h2>2. Label images</h2>
-          <p className="hint">
-            Image filenames must match the “filename” column. Add as many as needed.
-          </p>
+          <div className="card-head"><span className="step-num">2</span><div><h2>Label images</h2></div></div>
+          <p className="hint">Image filenames must match the “filename” column. Add as many as needed.</p>
           <ImageDrop multiple onFiles={addImages} />
           {images.length > 0 && (
             <p className="kv" style={{ marginTop: 12 }}>
-              {images.length} image(s) added · {matched.length} matched to applications
-              {unmatched > 0 && ` · ${unmatched} application(s) still missing an image`}
+              <span className="mono">{images.length}</span> image(s) · <span className="mono">{matched.length}</span> matched
+              {unmatched > 0 && <> · <span className="mono">{unmatched}</span> application(s) still missing an image</>}
             </p>
           )}
         </div>
@@ -317,26 +318,29 @@ export default function BatchVerify({ settings }) {
             {running
               ? `Verifying… ${done} of ${rows.length}`
               : rows.length > 0
-                ? 'Verified ✓'
-                : `Verify ${matched.length || ''} label${matched.length === 1 ? '' : 's'}`}
+                ? (<><Icon.check style={{ width: 18, height: 18 }} /> Verified</>)
+                : (<><Icon.shield style={{ width: 18, height: 18 }} /> Verify {matched.length || ''} label{matched.length === 1 ? '' : 's'}</>)}
           </button>
         </div>
         {rows.length > 0 && (
-          <div
-            className="progressbar"
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={rows.length}
-            aria-valuenow={done}
-          >
-            <div style={{ width: `${(done / rows.length) * 100}%` }} />
-          </div>
+          <>
+            <div
+              className="progressbar"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={rows.length}
+              aria-valuenow={done}
+            >
+              <div style={{ width: `${(done / rows.length) * 100}%` }} />
+            </div>
+            <div className="progress-label">{done} of {rows.length} complete · {CONCURRENCY} concurrent</div>
+          </>
         )}
       </div>
 
       {rows.length > 0 && (
         <div className="card">
-          <h2>Batch results</h2>
+          <h2 style={{ marginBottom: 16 }}>Batch results</h2>
 
           <div className="batch-toolbar">
             <div className="filter-group" role="group" aria-label="Filter results by verdict">
@@ -352,51 +356,46 @@ export default function BatchVerify({ settings }) {
                   {counts.review} review{counts.review === 1 ? '' : 's'} pending
                 </span>
               )}
-              <button
-                type="button"
-                className="btn secondary"
-                onClick={requestRerun}
-                disabled={running}
-              >
-                Run check again
+              <button type="button" className="btn ghost small" onClick={requestRerun} disabled={running}>
+                <Icon.refresh style={{ width: 16, height: 16 }} /> Run again
               </button>
-              <button type="button" className="btn" onClick={submit} disabled={running}>
-                Submit results
+              <button type="button" className="btn small" onClick={submit} disabled={running}>
+                <Icon.send style={{ width: 16, height: 16 }} /> Submit results
               </button>
             </div>
           </div>
 
-          {submitNote && <div className="success-note" role="status">{submitNote}</div>}
+          {submitNote && <div className="success-note" role="status"><Icon.check style={{ width: 18, height: 18 }} />{submitNote}</div>}
 
-          <p className="hint">Use the Details button on any row for the field-by-field checklist.</p>
-
-          <table className="batch-table">
-            <thead>
-              <tr>
-                <th>File</th>
-                <th>Brand</th>
-                <th>Verdict</th>
-                <th>Time</th>
-                <th>Details</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleRows.map(({ row, i }) => (
-                <BatchRow
-                  key={row.app.filename + i}
-                  row={row}
-                  expanded={expanded === i}
-                  onToggle={() => setExpanded(expanded === i ? null : i)}
-                  imageFile={imageByName.get((row.app.filename || '').toLowerCase())}
-                  onDecide={(decision) => decide(i, decision)}
-                  onClearDecision={() => clearDecision(i)}
-                />
-              ))}
-            </tbody>
-          </table>
+          <div className="table-wrap">
+            <table className="batch-table">
+              <thead>
+                <tr>
+                  <th>File</th>
+                  <th>Brand</th>
+                  <th>Verdict</th>
+                  <th>Time</th>
+                  <th aria-label="Details" />
+                </tr>
+              </thead>
+              <tbody>
+                {visibleRows.map(({ row, i }) => (
+                  <BatchRow
+                    key={row.app.filename + i}
+                    row={row}
+                    expanded={expanded === i}
+                    onToggle={() => setExpanded(expanded === i ? null : i)}
+                    imageFile={imageByName.get((row.app.filename || '').toLowerCase())}
+                    onDecide={(decision) => decide(i, decision)}
+                    onClearDecision={() => clearDecision(i)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
 
           {visibleRows.length === 0 && (
-            <p className="kv empty-filter">No {FILTER_LABELS[filter]} results.</p>
+            <p className="empty-filter">No {FILTER_LABELS[filter]} results.</p>
           )}
 
           {gateOpen && (
@@ -417,7 +416,7 @@ export default function BatchVerify({ settings }) {
                 >
                   Show reviews
                 </button>
-                <button type="button" className="btn secondary" onClick={() => setGateOpen(false)}>
+                <button type="button" className="btn ghost" onClick={() => setGateOpen(false)}>
                   Cancel
                 </button>
               </div>
@@ -439,7 +438,7 @@ export default function BatchVerify({ settings }) {
                 >
                   Run again
                 </button>
-                <button type="button" className="btn secondary" onClick={() => setRerunOpen(false)}>
+                <button type="button" className="btn ghost" onClick={() => setRerunOpen(false)}>
                   Cancel
                 </button>
               </div>
@@ -454,11 +453,11 @@ export default function BatchVerify({ settings }) {
 function BatchRow({ row, expanded, onToggle, imageFile, onDecide, onClearDecision }) {
   const verdictCell = () => {
     if (row.status === 'queued') return <span className="kv">Queued</span>;
-    if (row.status === 'processing') return <span className="kv">Processing…</span>;
+    if (row.status === 'processing') return <span className="processing-dots">Processing…</span>;
     if (row.status === 'error') {
       return (
         <>
-          <span className="chip MISMATCH">ERROR</span>
+          <StatusChip status="MISMATCH" />
           <div className="kv">{row.error}</div>
         </>
       );
@@ -467,46 +466,46 @@ function BatchRow({ row, expanded, onToggle, imageFile, onDecide, onClearDecisio
       const d = row.agentDecision.decision;
       return (
         <>
-          <span className={`chip ${d === 'PASS' ? 'MATCH' : 'MISMATCH'}`}>{d}</span>
+          <StatusChip status={d === 'PASS' ? 'MATCH' : 'MISMATCH'} />
           <div className="kv">{d === 'PASS' ? 'Agent approved' : 'Agent rejected'}</div>
         </>
       );
     }
     const ai = row.result.overall;
     const cls = ai === 'PASS' ? 'MATCH' : ai === 'REVIEW' ? 'REVIEW' : 'MISMATCH';
-    return <span className={`chip ${cls}`}>{ai}</span>;
+    return <StatusChip status={cls} />;
   };
 
   const isDone = row.status === 'done';
 
   return (
     <>
-      <tr className={isDone ? 'expandable' : ''} onClick={isDone ? onToggle : undefined}>
-        <td>{row.app.filename}</td>
-        <td>{row.app.brand_name}</td>
+      <tr className={`${isDone ? 'expandable' : ''} ${expanded ? 'open-row' : ''}`} onClick={isDone ? onToggle : undefined}>
+        <td><span className="fname">{row.app.filename}</span></td>
+        <td><span className="brand">{row.app.brand_name}</span></td>
         <td>{verdictCell()}</td>
-        <td className="timing">
-          {row.elapsedMs != null ? `${(row.elapsedMs / 1000).toFixed(1)} s` : '—'}
+        <td className="mono" style={{ fontSize: '.85rem' }}>
+          {row.elapsedMs != null ? `${(row.elapsedMs / 1000).toFixed(1)}s` : '—'}
         </td>
-        <td>
+        <td style={{ textAlign: 'right' }}>
           {isDone && (
             <button
               type="button"
-              className="btn secondary btn-small"
+              className="btn ghost small"
               aria-expanded={expanded}
               onClick={(e) => {
                 e.stopPropagation();
                 onToggle();
               }}
             >
-              {expanded ? 'Hide details ▴' : 'View details ▾'}
+              {expanded ? 'Hide details' : 'View details'}
             </button>
           )}
         </td>
       </tr>
       {expanded && isDone && (
         <tr>
-          <td colSpan={5}>
+          <td colSpan={5} className="detail-cell">
             <ResultCard result={row.result} elapsedMs={row.elapsedMs} imageFile={imageFile} />
             {row.result.overall === 'REVIEW' && (
               <AdjudicationPanel

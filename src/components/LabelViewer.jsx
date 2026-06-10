@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Icon } from './Icon.jsx';
 
 /**
  * Full-screen label inspector.
@@ -144,6 +145,10 @@ export default function LabelViewer({ file, alt = 'Label artwork', onClose }) {
       tabIndex={-1}
     >
       <div className="lv-toolbar">
+        <div className="lv-title">
+          <Icon.zoom style={{ width: 18, height: 18 }} /> Label inspector
+          {file?.name && <span className="mono">{file.name}</span>}
+        </div>
         <div className="lv-zoom-group" role="group" aria-label="Zoom controls">
           <button
             type="button"
@@ -166,21 +171,21 @@ export default function LabelViewer({ file, alt = 'Label artwork', onClose }) {
           </button>
           <button
             type="button"
-            className="lv-btn lv-btn-text"
+            className="lv-btn"
             aria-label="Fit label to screen"
             onClick={() => setLevel(0)}
           >
             Fit to screen
           </button>
+          <button
+            type="button"
+            className="lv-btn lv-close"
+            aria-label="Close full-size view"
+            onClick={onClose}
+          >
+            <Icon.x style={{ width: 18, height: 18, verticalAlign: '-3px' }} /> Close
+          </button>
         </div>
-        <button
-          type="button"
-          className="lv-btn lv-close"
-          aria-label="Close full-size view"
-          onClick={onClose}
-        >
-          &#10005; Close
-        </button>
       </div>
 
       <div
