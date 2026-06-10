@@ -41,24 +41,75 @@ Respond with ONLY this JSON object, no markdown fences, no commentary:
 }`;
 
 /**
- * Downscale an image file in the browser before upload. Phone photos are
- * often 4000+ px; the model reads labels just as well at ~1500 px and the
- * smaller payload keeps total turnaround inside the 5-second budget.
+ * Decode an image file into something drawable on a canvas.
+ * Fast path: createImageBitmap (raster formats). Fallback: HTMLImageElement,
+ * which handles SVG — Chrome's createImageBitmap rejects SVG blobs outright
+ * and Firefox rejects SVGs lacking width/height attributes. If both paths
+ * fail, the format is genuinely unsupported (e.g. TIFF, HEIC, PDF).
+ */
+async function decodeImage(file) {
+  try {
+    const bmp = await createImageBitmap(file);
+    return {
+      source: bmp,
+      width: bmp.width,
+      height: bmp.height,
+      cleanup: () => bmp.close(),
+    };
+  } catch {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.src = url;
+    try {
+      await img.decode();
+    } catch {
+      URL.revokeObjectURL(url);
+      throw new Error(
+        `Could not read “${file.name}” as an image. Supported formats: JPEG, PNG, WebP, GIF, SVG. For TIFF or PDF artwork, convert to PNG first.`,
+      );
+    }
+    // SVGs may report no intrinsic size; pick a sane rasterization width.
+    const width = img.naturalWidth || 1200;
+    const height = img.naturalHeight || Math.round(width * 1.4);
+    return {
+      source: img,
+      width,
+      height,
+      isVector: file.type === 'image/svg+xml',
+      cleanup: () => URL.revokeObjectURL(url),
+    };
+  }
+}
+
+/**
+ * Normalize an image file to a JPEG payload before upload. Raster images are
+ * downscaled to maxDim (phone photos are often 4000+ px; the model reads
+ * labels just as well at ~1500 px, and the smaller payload keeps turnaround
+ * inside the 5-second budget). Vector sources (SVG) are rasterized AT maxDim
+ * so small viewBoxes still yield crisp, readable text.
  */
 export async function fileToOptimizedBase64(file, maxDim = 1568) {
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
-  const w = Math.round(bitmap.width * scale);
-  const h = Math.round(bitmap.height * scale);
+  const decoded = await decodeImage(file);
+  try {
+    const ratio = maxDim / Math.max(decoded.width, decoded.height);
+    const scale = decoded.isVector ? ratio : Math.min(1, ratio);
+    const w = Math.max(1, Math.round(decoded.width * scale));
+    const h = Math.max(1, Math.round(decoded.height * scale));
 
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
-  bitmap.close();
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    // White backing so transparent PNG/SVG label art doesn't become black JPEG.
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(decoded.source, 0, 0, w, h);
 
-  const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
-  return { mediaType: 'image/jpeg', data: dataUrl.split(',')[1] };
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+    return { mediaType: 'image/jpeg', data: dataUrl.split(',')[1] };
+  } finally {
+    decoded.cleanup();
+  }
 }
 
 function stripFences(text) {
