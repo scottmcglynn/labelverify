@@ -31,12 +31,31 @@ export default function BatchVerify({ settings }) {
   const [filter, setFilter] = useState('ALL');
   const [submitNote, setSubmitNote] = useState(null);
   const [gateOpen, setGateOpen] = useState(false);
+  const [rerunOpen, setRerunOpen] = useState(false);
 
   const imageByName = useMemo(() => {
     const map = new Map();
     for (const f of images) map.set(f.name.toLowerCase(), f);
     return map;
   }, [images]);
+
+  // Return to the "ready" state: drop stale results, decisions, and submit
+  // state. Called whenever an input changes (new CSV or image set) so a result
+  // never lingers when it no longer matches the visible inputs.
+  const resetBatchResults = () => {
+    setRows([]);
+    setSubmitNote(null);
+    setExpanded(null);
+    setFilter('ALL');
+  };
+
+  const addImages = (files) => {
+    setImages((prev) => {
+      const names = new Set(prev.map((f) => f.name));
+      return [...prev, ...files.filter((f) => !names.has(f.name))];
+    });
+    resetBatchResults(); // image set changed → matched count may change
+  };
 
   const loadCsv = async (file) => {
     setCsvError(null);
@@ -52,7 +71,7 @@ export default function BatchVerify({ settings }) {
         return;
       }
       setApplications(parsed);
-      setRows([]);
+      resetBatchResults(); // new application set → clear any prior results
     } catch {
       setCsvError('Could not read that file as a CSV.');
     }
@@ -163,6 +182,17 @@ export default function BatchVerify({ settings }) {
     setSubmitNote(`Submitted ${n} result${n === 1 ? '' : 's'} — handoff file downloaded.`);
   };
 
+  // Re-running rebuilds rows from scratch, destroying any recorded decisions —
+  // so confirm first if any exist.
+  const anyDecision = rows.some((r) => r.agentDecision);
+  const requestRerun = () => {
+    if (anyDecision) {
+      setRerunOpen(true);
+      return;
+    }
+    run();
+  };
+
   const downloadTemplate = () => {
     downloadCsv(
       'batch-template.csv',
@@ -220,10 +250,7 @@ export default function BatchVerify({ settings }) {
           <p className="hint">
             Image filenames must match the “filename” column. Add as many as needed.
           </p>
-          <ImageDrop multiple onFiles={(files) => setImages((prev) => {
-            const names = new Set(prev.map((f) => f.name));
-            return [...prev, ...files.filter((f) => !names.has(f.name))];
-          })} />
+          <ImageDrop multiple onFiles={addImages} />
           {images.length > 0 && (
             <p className="kv" style={{ marginTop: 12 }}>
               {images.length} image(s) added · {matched.length} matched to applications
@@ -238,12 +265,14 @@ export default function BatchVerify({ settings }) {
           <button
             type="button"
             className="btn"
-            disabled={!matched.length || running}
+            disabled={!matched.length || running || rows.length > 0}
             onClick={run}
           >
             {running
               ? `Verifying… ${done} of ${rows.length}`
-              : `Verify ${matched.length || ''} label${matched.length === 1 ? '' : 's'}`}
+              : rows.length > 0
+                ? 'Verified ✓'
+                : `Verify ${matched.length || ''} label${matched.length === 1 ? '' : 's'}`}
           </button>
         </div>
         {rows.length > 0 && (
@@ -277,6 +306,14 @@ export default function BatchVerify({ settings }) {
                   {counts.review} review{counts.review === 1 ? '' : 's'} pending
                 </span>
               )}
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={requestRerun}
+                disabled={running}
+              >
+                Run check again
+              </button>
               <button type="button" className="btn" onClick={submit} disabled={running}>
                 Submit results
               </button>
@@ -335,6 +372,28 @@ export default function BatchVerify({ settings }) {
                   Show reviews
                 </button>
                 <button type="button" className="btn secondary" onClick={() => setGateOpen(false)}>
+                  Cancel
+                </button>
+              </div>
+            </Modal>
+          )}
+
+          {rerunOpen && (
+            <Modal labelledById="rerun-title" onClose={() => setRerunOpen(false)}>
+              <h2 id="rerun-title">Run the check again?</h2>
+              <p>Running the check again clears the recorded decision(s).</p>
+              <div className="btn-row">
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    setRerunOpen(false);
+                    run();
+                  }}
+                >
+                  Run again
+                </button>
+                <button type="button" className="btn secondary" onClick={() => setRerunOpen(false)}>
                   Cancel
                 </button>
               </div>

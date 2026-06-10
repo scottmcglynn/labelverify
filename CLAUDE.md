@@ -90,6 +90,14 @@ COLA form data ─────────────────────�
    get a friendly error. SVG is rasterized AT maxDim so small viewBoxes stay
    crisp. The SVG/fallback path is exercised by the fixtures in `test-labels/`.
 
+6. **Verify-button state machine (both tabs).** The primary Verify button
+   follows ready → verifying → verified (disabled + "Verified ✓" once results
+   exist); stale results are ALWAYS cleared on any input change (form field,
+   image, application, or CSV) so a verdict never lingers when it no longer
+   matches the visible inputs; re-running is a separate "Run check again" action
+   that requires modal confirmation when any agent decision has been recorded
+   (a re-run rebuilds results and would destroy decisions).
+
 ## Code map
 
 ```

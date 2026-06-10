@@ -23,12 +23,11 @@ export default function SingleVerify({ settings }) {
   const [agentDecision, setAgentDecision] = useState(null);
   const [submitNote, setSubmitNote] = useState(null);
   const [gateOpen, setGateOpen] = useState(false);
-
-  const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
-  const ready = file && form.brand_name && form.alcohol_content;
+  const [rerunOpen, setRerunOpen] = useState(false);
 
   // Clear everything downstream of the application/image inputs. Called when a
-  // new verification begins (new image, re-verify, or a new application loaded).
+  // new verification begins (new image, re-verify) or any input changes (form
+  // field, image, application) so a stale result never lingers on screen.
   const resetOutcome = () => {
     setResult(null);
     setElapsedMs(null);
@@ -36,6 +35,13 @@ export default function SingleVerify({ settings }) {
     setSubmitNote(null);
     setError(null);
   };
+
+  // Editing any field returns the tab to the "ready" state (re-enables Verify).
+  const set = (key) => (e) => {
+    setForm({ ...form, [key]: e.target.value });
+    resetOutcome();
+  };
+  const ready = file && form.brand_name && form.alcohol_content;
 
   const loadApplication = (id) => {
     setAppId(id);
@@ -110,6 +116,16 @@ export default function SingleVerify({ settings }) {
     setSubmitNote(`Submitted ${n} result${n === 1 ? '' : 's'} — handoff file downloaded.`);
   };
 
+  // A re-run discards the result and any recorded decision — confirm first if a
+  // decision exists.
+  const requestRerun = () => {
+    if (agentDecision) {
+      setRerunOpen(true);
+      return;
+    }
+    run();
+  };
+
   return (
     <div>
       <div className="two-col">
@@ -157,8 +173,8 @@ export default function SingleVerify({ settings }) {
 
       <div className="card">
         <div className="btn-row">
-          <button type="button" className="btn" disabled={!ready || busy} onClick={run}>
-            {busy ? 'Checking label…' : 'Verify label'}
+          <button type="button" className="btn" disabled={!ready || busy || !!result} onClick={run}>
+            {busy ? 'Checking label…' : result ? 'Verified ✓' : 'Verify label'}
           </button>
           {!ready && !busy && (
             <span className="kv">Add a label image, brand name, and alcohol content to begin.</span>
@@ -191,6 +207,9 @@ export default function SingleVerify({ settings }) {
             <button type="button" className="btn" onClick={submit}>
               Submit result
             </button>
+            <button type="button" className="btn secondary" onClick={requestRerun}>
+              Run check again
+            </button>
             {unresolvedReview && (
               <span className="reviews-pending">1 review pending</span>
             )}
@@ -205,6 +224,28 @@ export default function SingleVerify({ settings }) {
           <div className="btn-row">
             <button type="button" className="btn" onClick={() => setGateOpen(false)}>
               OK
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {rerunOpen && (
+        <Modal labelledById="single-rerun-title" onClose={() => setRerunOpen(false)}>
+          <h2 id="single-rerun-title">Run the check again?</h2>
+          <p>Running the check again clears the recorded decision(s).</p>
+          <div className="btn-row">
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                setRerunOpen(false);
+                run();
+              }}
+            >
+              Run again
+            </button>
+            <button type="button" className="btn secondary" onClick={() => setRerunOpen(false)}>
+              Cancel
             </button>
           </div>
         </Modal>
