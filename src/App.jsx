@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import SettingsPanel from './components/SettingsPanel.jsx';
 import SingleVerify from './components/SingleVerify.jsx';
 import BatchVerify from './components/BatchVerify.jsx';
+import { Icon } from './components/Icon.jsx';
 import { MODELS } from './lib/anthropic.js';
 
 const SETTINGS_KEY = 'label-verify-settings';
@@ -24,16 +25,31 @@ export default function App() {
     sessionStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   }, [settings]);
 
+  const connected = !!settings.apiKey;
+
   return (
     <>
-      <div className="gov-banner">
-        Prototype — not an official TTB system. For evaluation only.
+      <div className="util-bar">
+        <div className="wrap">
+          <span className="flag" aria-hidden="true" />
+          <span>Prototype — <strong>not an official TTB system</strong>. For evaluation only.</span>
+        </div>
       </div>
-      <header className="app-header">
-        <h1>Label Verify</h1>
-        <span className="subtitle">
-          AI-assisted alcohol label verification for COLA review
-        </span>
+
+      <header className="masthead">
+        <div className="wrap">
+          <span className="seal" aria-hidden="true"><Icon.shield /></span>
+          <div className="brand-block">
+            <h1 className="wordmark">Label Verify<span className="tld">.</span></h1>
+            <span className="brand-sub">AI-assisted alcohol label verification for COLA review</span>
+          </div>
+          <span className="spacer" />
+          <div className="mast-status">
+            <span className={`conn-pill ${connected ? 'ready' : 'demo'}`}>
+              <span className="dot" />{connected ? 'Connected' : 'Key needed'}
+            </span>
+          </div>
+        </div>
       </header>
 
       <main className="container">
@@ -47,7 +63,7 @@ export default function App() {
             className={`tab ${tab === 'single' ? 'active' : ''}`}
             onClick={() => setTab('single')}
           >
-            Single label
+            <span className="tnum">01</span> Single label
           </button>
           <button
             type="button"
@@ -56,7 +72,7 @@ export default function App() {
             className={`tab ${tab === 'batch' ? 'active' : ''}`}
             onClick={() => setTab('batch')}
           >
-            Batch upload
+            <span className="tnum">02</span> Batch upload
           </button>
         </div>
 
@@ -68,8 +84,9 @@ export default function App() {
       </main>
 
       <p className="footer-note">
-        Verification is AI-assisted. Agents make the final call — REVIEW and FAIL
-        verdicts always require human confirmation before rejection.
+        Verification is <strong>AI-assisted</strong>. The model extracts what is printed on the label;
+        a deterministic engine decides the verdict. Agents make the final call — <strong>REVIEW</strong> and
+        {' '}<strong>FAIL</strong> verdicts always require human confirmation before rejection.
       </p>
     </>
   );

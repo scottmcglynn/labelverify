@@ -4,6 +4,7 @@ import { verify } from '../lib/compare.js';
 import { buildHandoff, downloadHandoff } from '../lib/handoff.js';
 import { SAMPLE_APPLICATIONS, loadSampleArtwork } from '../lib/sampleApplications.js';
 import { AdjudicationPanel, ImageDrop, Modal, ResultCard } from './Shared.jsx';
+import { Icon } from './Icon.jsx';
 
 const EMPTY_FORM = {
   brand_name: '',
@@ -62,7 +63,11 @@ export default function SingleVerify({ settings }) {
     setAppId(id);
     resetOutcome();
     const app = SAMPLE_APPLICATIONS.find((a) => a.id === id);
-    if (!app) return;
+    if (!app) {
+      setImage(null, false);
+      setForm(EMPTY_FORM);
+      return;
+    }
     setForm({
       brand_name: app.brand_name,
       class_type: app.class_type,
@@ -151,24 +156,36 @@ export default function SingleVerify({ settings }) {
 
   return (
     <div>
+      <div className="demo-strip">
+        <span className="eyebrow">Simulated COLA</span>
+        <span className="ds-text">
+          <strong>Load an application</strong> to pull its filed data and label artwork — or enter
+          fields and drop a label manually.
+        </span>
+        <span className="spacer" />
+        <select
+          className="ds-select"
+          value={appId}
+          onChange={(e) => loadApplication(e.target.value)}
+          aria-label="Load a sample application"
+          style={{ minWidth: 230 }}
+        >
+          <option value="">Load application…</option>
+          {SAMPLE_APPLICATIONS.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <div className="two-col">
         <div className="card">
-          <h2>1. Application (simulated COLA lookup)</h2>
+          <div className="card-head"><span className="step-num">1</span><div><h2>Application</h2></div></div>
           <p className="hint">
-            In production these fields arrive prefilled from the COLA record. They're
-            editable here for testing — change a value to simulate a mismatch.
+            In production these fields arrive prefilled from the COLA record. They're editable here
+            for testing — change a value to simulate a mismatch.
           </p>
-          <label className="field">
-            Load application
-            <select value={appId} onChange={(e) => loadApplication(e.target.value)}>
-              <option value="">Choose an application…</option>
-              {SAMPLE_APPLICATIONS.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.label}
-                </option>
-              ))}
-            </select>
-          </label>
           <label className="field">
             Brand name
             <input value={form.brand_name} onChange={set('brand_name')} placeholder="OLD TOM DISTILLERY" />
@@ -177,19 +194,21 @@ export default function SingleVerify({ settings }) {
             Class / type
             <input value={form.class_type} onChange={set('class_type')} placeholder="Kentucky Straight Bourbon Whiskey" />
           </label>
-          <label className="field">
-            Alcohol content (% Alc./Vol.)
-            <input value={form.alcohol_content} onChange={set('alcohol_content')} placeholder="45" />
-          </label>
-          <label className="field">
-            Net contents
-            <input value={form.net_contents} onChange={set('net_contents')} placeholder="750 mL" />
-          </label>
+          <div className="two-col" style={{ gap: 16 }}>
+            <label className="field">
+              Alcohol content (% Alc./Vol.)
+              <input value={form.alcohol_content} onChange={set('alcohol_content')} placeholder="45" />
+            </label>
+            <label className="field">
+              Net contents
+              <input value={form.net_contents} onChange={set('net_contents')} placeholder="750 mL" />
+            </label>
+          </div>
         </div>
 
         <div className="card">
-          <h2>2. Label image</h2>
-          <p className="hint">A photo or scan of the label artwork.</p>
+          <div className="card-head"><span className="step-num">2</span><div><h2>Label image</h2></div></div>
+          <p className="hint">A photo or scan of the label artwork. Loads automatically with a sample application.</p>
           <ImageDrop file={file} onFile={onFile} autoLoaded={imageAutoLoaded} />
           {artworkError && (
             <p className="hint" role="status" style={{ marginTop: 8 }}>
@@ -202,19 +221,19 @@ export default function SingleVerify({ settings }) {
       <div className="card">
         <div className="btn-row">
           <button type="button" className="btn" disabled={!ready || busy || !!result} onClick={run}>
-            {busy ? 'Checking label…' : result ? 'Verified ✓' : 'Verify label'}
+            {busy ? 'Checking label…' : result ? (<><Icon.check style={{ width: 18, height: 18 }} /> Verified</>) : (<><Icon.shield style={{ width: 18, height: 18 }} /> Verify label</>)}
           </button>
           {!ready && !busy && (
-            <span className="kv">Add a label image, brand name, and alcohol content to begin.</span>
+            <span className="note-inline">Load an application above, or add a label image, brand name, and alcohol content to begin.</span>
           )}
         </div>
       </div>
 
-      {error && <div className="error-banner" role="alert">{error}</div>}
+      {error && <div className="error-banner" role="alert"><Icon.alert style={{ width: 18, height: 18 }} />{error}</div>}
 
       {result && (
         <div className="card">
-          <h2>Verification result</h2>
+          <h2 style={{ marginBottom: 18 }}>Verification result</h2>
           <ResultCard result={result} elapsedMs={elapsedMs} imageFile={file} />
 
           {result.overall === 'REVIEW' && (
@@ -227,20 +246,18 @@ export default function SingleVerify({ settings }) {
 
           {submitNote && (
             <div className="success-note" role="status" style={{ marginTop: 16 }}>
-              {submitNote}
+              <Icon.check style={{ width: 18, height: 18 }} />{submitNote}
             </div>
           )}
 
-          <div className="btn-row" style={{ marginTop: 16 }}>
+          <div className="btn-row" style={{ marginTop: 18 }}>
             <button type="button" className="btn" onClick={submit}>
-              Submit result
+              <Icon.send style={{ width: 17, height: 17 }} /> Submit result
             </button>
-            <button type="button" className="btn secondary" onClick={requestRerun}>
-              Run check again
+            <button type="button" className="btn ghost" onClick={requestRerun}>
+              <Icon.refresh style={{ width: 17, height: 17 }} /> Run check again
             </button>
-            {unresolvedReview && (
-              <span className="reviews-pending">1 review pending</span>
-            )}
+            {unresolvedReview && <span className="reviews-pending">1 review pending</span>}
           </div>
         </div>
       )}
@@ -272,7 +289,7 @@ export default function SingleVerify({ settings }) {
             >
               Run again
             </button>
-            <button type="button" className="btn secondary" onClick={() => setRerunOpen(false)}>
+            <button type="button" className="btn ghost" onClick={() => setRerunOpen(false)}>
               Cancel
             </button>
           </div>

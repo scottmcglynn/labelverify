@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import LabelViewer from './LabelViewer.jsx';
+import { Icon } from './Icon.jsx';
 
 /**
  * Drag-and-drop / click-to-browse image picker with inline preview.
@@ -59,19 +60,17 @@ export function ImageDrop({ file, onFile, multiple = false, onFiles, autoLoaded 
         <>
           <img src={previewUrl} alt="Label preview" />
           <div className="filename">
-            {autoLoaded
-              ? 'Label artwork from application (simulated) — click or drop to replace'
-              : `${file.name} — click or drop to replace`}
+            {autoLoaded ? (
+              <>Artwork from application · <span className="mono">{file.name}</span> · click or drop to replace</>
+            ) : (
+              <><span className="mono">{file.name}</span> · click or drop to replace</>
+            )}
           </div>
         </>
       ) : (
         <>
-          <div style={{ fontSize: '2rem' }} aria-hidden>
-            🖼️
-          </div>
-          <strong>
-            {multiple ? 'Drop label images here' : 'Drop the label image here'}
-          </strong>
+          <span className="dz-icon"><Icon.image /></span>
+          <strong>{multiple ? 'Drop label images here' : 'Drop the label image here'}</strong>
           <div>or click to browse</div>
         </>
       )}
@@ -92,6 +91,37 @@ const VERDICT_TEXT = {
   REVIEW: 'Needs agent review',
   FAIL: 'Does not match application',
 };
+const LEGIBILITY_TEXT = { good: 'good', partial: 'partial (note: glare/angle)', poor: 'poor' };
+
+/** Status chip — a coloured pill carrying its status as a className. */
+export function StatusChip({ status }) {
+  return <span className={`chip ${status}`}>{status.replace('_', ' ')}</span>;
+}
+
+/** Field-by-field checklist: each row an agent can scan top-to-bottom. */
+function Checklist({ result }) {
+  return (
+    <div className="checklist">
+      {result.fields.map((f) => (
+        <div className={`check-row s-${f.result.status}`} key={f.key}>
+          <StatusChip status={f.result.status} />
+          <div>
+            <div className="label">{f.label}</div>
+            <div className="detail">{f.result.detail}</div>
+            {f.key !== 'government_warning' && (
+              <div className="values">
+                <span className="vk">App</span>
+                <span className="vv">{f.applied || '—'}</span>
+                <span className="vk">Label</span>
+                <span className="vv">{f.extracted || '—'}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /**
  * Full verification result: overall verdict stamp + field checklist.
@@ -115,36 +145,22 @@ export function ResultCard({ result, elapsedMs, imageFile }) {
 
   if (!result) return null;
 
-  const checklist = (
-    <div className="checklist">
-      {result.fields.map((f) => (
-        <div className="check-row" key={f.key}>
-          <span className={`chip ${f.result.status}`}>
-            {f.result.status.replace('_', ' ')}
-          </span>
-          <div>
-            <div className="label">{f.label}</div>
-            <div className="detail">{f.result.detail}</div>
-            {f.key !== 'government_warning' && (
-              <div className="values">
-                Application: {f.applied || '—'} · Label: {f.extracted || '—'}
-              </div>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+  const checklist = <Checklist result={result} />;
 
   return (
-    <div>
+    <div className="rise">
       <div className={`verdict ${result.overall}`}>
         <span className="stamp">{result.overall}</span>
-        <div>
+        <div className="v-body">
           <strong>{VERDICT_TEXT[result.overall]}</strong>
           <div className="meta">
-            {elapsedMs != null && <>Processed in {(elapsedMs / 1000).toFixed(1)} s · </>}
-            Image legibility: {result.legibility}
+            {elapsedMs != null && (
+              <>
+                <Icon.clock style={{ width: 13, height: 13, verticalAlign: '-2px', marginRight: 4 }} />
+                Processed in <span className="mono">{(elapsedMs / 1000).toFixed(1)}s</span> ·{' '}
+              </>
+            )}
+            Image legibility: {LEGIBILITY_TEXT[result.legibility] || result.legibility}
           </div>
         </div>
       </div>
@@ -160,12 +176,8 @@ export function ResultCard({ result, elapsedMs, imageFile }) {
             >
               <img src={previewUrl} alt="Label artwork" />
             </button>
-            <button
-              type="button"
-              className="btn secondary"
-              onClick={() => setViewerOpen(true)}
-            >
-              View full size
+            <button type="button" className="btn secondary" onClick={() => setViewerOpen(true)}>
+              <Icon.zoom style={{ width: 17, height: 17 }} /> View full size
             </button>
           </div>
           {checklist}
@@ -190,34 +202,35 @@ export function ResultCard({ result, elapsedMs, imageFile }) {
 export function AdjudicationPanel({ agentDecision, onDecide, onClearDecision }) {
   return (
     <div className="adjudication">
-      <h3>Agent decision</h3>
+      <h3><Icon.alert style={{ width: 17, height: 17 }} /> Agent decision required</h3>
+      <p className="sub">This label needs human judgment before it can be submitted.</p>
       {agentDecision ? (
         <>
           <p className="adjudication-status">
-            {agentDecision.decision === 'PASS'
-              ? 'Approved — marked PASS'
-              : 'Rejected — marked FAIL'}{' '}
-            <span className="kv">
-              (decided {new Date(agentDecision.decidedAt).toLocaleString()})
-            </span>
+            {agentDecision.decision === 'PASS' ? (
+              <><StatusChip status="MATCH" /> Approved — marked PASS</>
+            ) : (
+              <><StatusChip status="MISMATCH" /> Rejected — marked FAIL</>
+            )}
+            <span className="kv">decided {new Date(agentDecision.decidedAt).toLocaleString()}</span>
           </p>
-          <button type="button" className="btn secondary" onClick={onClearDecision}>
+          <button type="button" className="btn ghost small" onClick={onClearDecision}>
             Change decision
           </button>
         </>
       ) : (
         <div className="btn-row">
           <button type="button" className="btn approve" onClick={() => onDecide('PASS')}>
-            Approve — mark PASS
+            <Icon.check style={{ width: 17, height: 17 }} /> Approve — mark PASS
           </button>
           <button type="button" className="btn reject" onClick={() => onDecide('FAIL')}>
-            Reject — mark FAIL
+            <Icon.x style={{ width: 17, height: 17 }} /> Reject — mark FAIL
           </button>
         </div>
       )}
       <p className="hint">
-        Records an agent decision for the handoff. The AI verdict (REVIEW) is
-        preserved for auditability and is never overwritten.
+        The AI verdict (REVIEW) is preserved for the audit trail and is never overwritten by the
+        agent decision.
       </p>
     </div>
   );
@@ -280,7 +293,7 @@ export function Modal({ labelledById, onClose, children }) {
       }}
     >
       <div
-        className="modal-box"
+        className="modal-box rise"
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledById}
