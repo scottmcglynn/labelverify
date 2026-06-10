@@ -54,7 +54,14 @@ export default function BatchVerify({ settings }) {
       const names = new Set(prev.map((f) => f.name));
       return [...prev, ...files.filter((f) => !names.has(f.name))];
     });
-    resetBatchResults(); // image set changed → matched count may change
+    // Invalidation is keyed to the RAW image set, not the matched pairs: any
+    // image added here clears results and recorded decisions, even an unmatched
+    // one (a filename that pairs with no application row). This is deliberately
+    // conservative — an add can change which rows match, so we drop the whole
+    // result set rather than diff matched-before vs matched-after. The trade-off
+    // is that adding an unmatched image also discards completed adjudications; a
+    // future refinement could reset only when the matched set actually changes.
+    resetBatchResults();
   };
 
   const loadCsv = async (file) => {

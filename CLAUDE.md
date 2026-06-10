@@ -92,11 +92,19 @@ COLA form data ─────────────────────�
 
 6. **Verify-button state machine (both tabs).** The primary Verify button
    follows ready → verifying → verified (disabled + "Verified ✓" once results
-   exist); stale results are ALWAYS cleared on any input change (form field,
-   image, application, or CSV) so a verdict never lingers when it no longer
-   matches the visible inputs; re-running is a separate "Run check again" action
-   that requires modal confirmation when any agent decision has been recorded
-   (a re-run rebuilds results and would destroy decisions).
+   exist); stale results are ALWAYS cleared on any input change so a verdict
+   never lingers when it no longer matches the visible inputs; re-running is a
+   separate "Run check again" action that requires modal confirmation when any
+   agent decision has been recorded (a re-run rebuilds results and would destroy
+   decisions). In **single** mode the inputs are the form fields, the image, and
+   the loaded application. In **batch** mode, invalidation is keyed to the **raw
+   image set**, not the matched pairs: `addImages` clears results and recorded
+   decisions whenever ANY image is added — matched or not — and `loadCsv` clears
+   on a new application set. This is deliberately conservative (an image add can
+   change which rows match, so the whole result set is dropped rather than
+   diffed); the trade-off is that adding an unmatched image also discards
+   completed adjudications. A future refinement could clear only when the
+   matched set actually changes.
 
 ## Code map
 
